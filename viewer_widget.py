@@ -925,7 +925,7 @@ class STLViewerWidget(QWidget):
             sphere = pv.Sphere(radius=sphere_radius, center=point)
             actor = self.plotter.add_mesh(
                 sphere, 
-                color='#5294E2', 
+                color='black', 
                 name=f'measure_pt_{len(self.measurement_points)}_{id(point)}'
             )
             self.measurement_actors.append(actor)
@@ -959,8 +959,8 @@ class STLViewerWidget(QWidget):
                 bounds[3] - bounds[2],  # y range
                 bounds[5] - bounds[4],  # z range
             )
-            # Marker size is ~1% of the largest dimension
-            return max(max_dimension * 0.01, 0.1)
+            # Marker size is ~0.5% of the largest dimension
+            return max(max_dimension * 0.005, 0.05)
         except Exception as e:
             logger.warning(f"_get_measurement_marker_size: Could not calculate size: {e}")
             return 1.0
@@ -975,19 +975,70 @@ class STLViewerWidget(QWidget):
         return distance
     
     def _draw_measurement_line(self, point1, point2, distance):
-        """Draw measurement line with distance label between two points."""
+        """Draw measurement line with arrowheads and distance label between two points."""
         import numpy as np
         
         try:
-            # Create line between points
+            p1 = np.array(point1)
+            p2 = np.array(point2)
+            direction = p2 - p1
+            length = np.linalg.norm(direction)
+            
+            if length == 0:
+                return
+            
+            dir_unit = direction / length
+            
+            # Arrow size proportional to measurement length (~4% of distance)
+            arrow_tip_length = max(length * 0.04, 0.2)
+            arrow_shaft_radius = max(length * 0.004, 0.05)
+            arrow_tip_radius = arrow_shaft_radius * 2.5
+            
+            # Create the main line (black)
             line = pv.Line(point1, point2)
             line_actor = self.plotter.add_mesh(
                 line,
-                color='#5294E2',
+                color='black',
                 line_width=2,
                 name=f'measure_line_{id(point1)}'
             )
             self.measurement_actors.append(line_actor)
+            
+            # Arrowhead at point1 (pointing from p2 toward p1)
+            try:
+                cone1 = pv.Cone(
+                    center=p1 + dir_unit * (arrow_tip_length / 2),
+                    direction=-dir_unit,
+                    height=arrow_tip_length,
+                    radius=arrow_tip_radius,
+                    resolution=20,
+                )
+                cone1_actor = self.plotter.add_mesh(
+                    cone1,
+                    color='black',
+                    name=f'measure_arrow1_{id(point1)}'
+                )
+                self.measurement_actors.append(cone1_actor)
+            except Exception as e:
+                logger.warning(f"_draw_measurement_line: Could not add arrowhead 1: {e}")
+            
+            # Arrowhead at point2 (pointing from p1 toward p2)
+            try:
+                cone2 = pv.Cone(
+                    center=p2 - dir_unit * (arrow_tip_length / 2),
+                    direction=dir_unit,
+                    height=arrow_tip_length,
+                    radius=arrow_tip_radius,
+                    resolution=20,
+                )
+                cone2_actor = self.plotter.add_mesh(
+                    cone2,
+                    color='black',
+                    name=f'measure_arrow2_{id(point1)}'
+                )
+                self.measurement_actors.append(cone2_actor)
+            except Exception as e:
+                logger.warning(f"_draw_measurement_line: Could not add arrowhead 2: {e}")
             
             # Calculate midpoint for label
             midpoint = [
@@ -1011,7 +1062,7 @@ class STLViewerWidget(QWidget):
                 label_points,
                 [label_text],
                 font_size=12,
-                text_color='#0F172A',
+                text_color='black',
                 font_family='arial',
                 bold=True,
                 show_points=False,
