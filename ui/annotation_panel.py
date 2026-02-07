@@ -197,6 +197,7 @@ class AnnotationPanel(QWidget):
     annotation_deleted = pyqtSignal(int)   # annotation_id
     annotation_validated = pyqtSignal(int, str, list)  # annotation_id, text, image_paths
     open_popup_requested = pyqtSignal(int)  # annotation_id - request to open popup
+    open_viewer_popup_requested = pyqtSignal(int)  # annotation_id - request to open viewer popup (reader mode)
     focus_annotation = pyqtSignal(int)     # annotation_id
     exit_annotation_mode = pyqtSignal()
     clear_all_requested = pyqtSignal()
@@ -206,6 +207,7 @@ class AnnotationPanel(QWidget):
         self.annotations: List[Annotation] = []
         self.annotation_cards: dict = {}  # id -> AnnotationCard
         self._next_id = 1
+        self._reader_mode = False  # Reader mode flag
         self.init_ui()
     
     def init_ui(self):
@@ -263,11 +265,28 @@ class AnnotationPanel(QWidget):
         
         header_layout.addLayout(title_row)
         
-        # Instructions
-        instructions = QLabel("Click on the 3D model to add annotation points")
-        instructions.setWordWrap(True)
-        instructions.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 10px;")
-        header_layout.addWidget(instructions)
+        # Instructions / Reader Mode indicator
+        self.instructions_label = QLabel("Click on the 3D model to add annotation points")
+        self.instructions_label.setWordWrap(True)
+        self.instructions_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 10px;")
+        header_layout.addWidget(self.instructions_label)
+        
+        # Reader mode banner (hidden by default)
+        self.reader_mode_banner = QFrame()
+        self.reader_mode_banner.setStyleSheet(f"""
+            QFrame {{
+                background-color: #DBEAFE;
+                border: 1px solid #93C5FD;
+                border-radius: 6px;
+            }}
+        """)
+        banner_layout = QHBoxLayout(self.reader_mode_banner)
+        banner_layout.setContentsMargins(10, 8, 10, 8)
+        reader_label = QLabel("📖 Reader Mode - View Only")
+        reader_label.setStyleSheet("color: #1E40AF; font-size: 11px; font-weight: bold;")
+        banner_layout.addWidget(reader_label)
+        self.reader_mode_banner.hide()
+        header_layout.addWidget(self.reader_mode_banner)
         
         main_layout.addWidget(header)
         
@@ -333,6 +352,30 @@ class AnnotationPanel(QWidget):
         btn_layout.addStretch()
         
         main_layout.addWidget(btn_frame)
+    
+    def set_reader_mode(self, enabled: bool):
+        """Enable or disable reader mode (view-only)."""
+        self._reader_mode = enabled
+        
+        if enabled:
+            # Show reader mode banner, hide instructions
+            self.reader_mode_banner.show()
+            self.instructions_label.hide()
+            # Hide clear button
+            self.clear_btn.hide()
+            # Update card styling
+            for card in self.annotation_cards.values():
+                card.status_label.setText("📖 View only")
+        else:
+            # Show instructions, hide banner
+            self.reader_mode_banner.hide()
+            self.instructions_label.show()
+            # Show clear button
+            self.clear_btn.show()
+    
+    def is_reader_mode(self) -> bool:
+        """Check if panel is in reader mode."""
+        return self._reader_mode
     
     def add_annotation(self, point: tuple) -> Annotation:
         """Add a new annotation at the given point (gray, pending)."""
@@ -429,8 +472,11 @@ class AnnotationPanel(QWidget):
         return [a.to_dict() for a in self.annotations]
     
     def _on_card_clicked(self, annotation_id: int):
-        """Handle card click - request to open popup."""
-        self.open_popup_requested.emit(annotation_id)
+        """Handle card click - request to open popup (edit or view based on mode)."""
+        if self._reader_mode:
+            self.open_viewer_popup_requested.emit(annotation_id)
+        else:
+            self.open_popup_requested.emit(annotation_id)
     
     def _on_delete_requested(self, annotation_id: int):
         """Handle delete request from a card."""
