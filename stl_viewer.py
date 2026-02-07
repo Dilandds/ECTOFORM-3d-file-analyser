@@ -432,6 +432,7 @@ class STLViewerWindow(QMainWindow):
         self.annotation_panel.annotation_deleted.connect(self._on_annotation_deleted)
         self.annotation_panel.annotation_validated.connect(self._on_annotation_validated)
         self.annotation_panel.open_popup_requested.connect(self._on_open_popup_requested)
+        self.annotation_panel.open_viewer_popup_requested.connect(self._on_open_viewer_popup_requested)
         self.annotation_panel.focus_annotation.connect(self._on_focus_annotation)
         self.annotation_panel.exit_annotation_mode.connect(self._exit_annotation_mode)
         self.annotation_panel.clear_all_requested.connect(self._clear_all_annotations)
@@ -510,6 +511,26 @@ class STLViewerWindow(QMainWindow):
         
         popup.show()
         logger.info(f"_on_open_popup_requested: Opened popup for annotation {annotation_id}")
+    
+    def _on_open_viewer_popup_requested(self, annotation_id: int):
+        """Handle request to open viewer popup for an annotation (reader mode)."""
+        from ui.annotation_viewer_popup import AnnotationViewerPopup
+        
+        annotation = self.annotation_panel.get_annotation_by_id(annotation_id)
+        if annotation is None:
+            return
+        
+        # Create and show viewer popup (read-only)
+        popup = AnnotationViewerPopup(
+            annotation_id=annotation.id,
+            point=annotation.point,
+            text=annotation.text,
+            image_paths=annotation.image_paths,
+            parent=self
+        )
+        
+        popup.show()
+        logger.info(f"_on_open_viewer_popup_requested: Opened viewer popup for annotation {annotation_id}")
     
     def _on_popup_validated(self, annotation_id: int, text: str, image_paths: list):
         """Handle annotation validated from popup - turn dot black."""
@@ -651,12 +672,16 @@ class STLViewerWindow(QMainWindow):
             success = MeshCalculator.export_stl(scaled_mesh, file_path)
             
             if success:
-                # Also save annotations if any
-                annotations = self.annotation_panel.export_annotations()
-                if annotations:
-                    from core.annotation_exporter import AnnotationExporter
-                    AnnotationExporter.save_annotations(annotations, file_path)
-                    logger.info(f"export_scaled_stl: Saved {len(annotations)} annotations")
+            # Also save annotations if any (with reader_mode enabled for recipients)
+            annotations = self.annotation_panel.export_annotations()
+            if annotations:
+                from core.annotation_exporter import AnnotationExporter
+                AnnotationExporter.save_annotations(
+                    annotations, file_path, 
+                    reader_mode=True,  # Enable reader mode for recipients
+                    bundle_images=True  # Bundle images with export
+                )
+                logger.info(f"export_scaled_stl: Saved {len(annotations)} annotations with reader_mode")
                 
                 logger.info(f"export_scaled_stl: Successfully exported to {file_path}")
                 msg = f"Scaled STL file exported successfully to:\n{file_path}"
@@ -679,33 +704,50 @@ class STLViewerWindow(QMainWindow):
             )
     
     def _load_annotations_for_file(self, file_path: str):
-        """Load annotations for a file if they exist."""
+        """Load annotations for a file if they exist and handle reader mode."""
         try:
             from core.annotation_exporter import AnnotationExporter
             
             # Clear existing annotations first
             self._clear_all_annotations()
             
+            # Reset reader mode
+            self.toolbar.set_reader_mode(False)
+            self.annotation_panel.set_reader_mode(False)
+            
             # Check if annotations exist
             if not AnnotationExporter.annotations_exist(file_path):
                 return
             
-            # Load annotations
-            annotations, msg = AnnotationExporter.load_annotations(file_path)
+            # Load annotations with reader mode flag
+            annotations, msg, reader_mode = AnnotationExporter.load_annotations(file_path)
             if annotations:
                 self.annotation_panel.load_annotations(annotations)
+                
+                # Enable reader mode if flag is set
+                if reader_mode:
+                    self.toolbar.set_reader_mode(True)
+                    self.annotation_panel.set_reader_mode(True)
+                    # Show annotation panel in reader mode
+                    self.annotation_panel.show()
+                    logger.info(f"Reader Mode enabled for {file_path}")
                 
                 # Add markers to the viewer
                 for ann_data in annotations:
                     ann_id = ann_data['id']
                     point = tuple(ann_data['point'])
-                    is_read = ann_data.get('is_read', False)
-                    color = '#10B981' if is_read else '#3B82F6'
+                    is_validated = ann_data.get('is_validated', False)
+                    # In reader mode, all dots are black (validated view)
+                    # In normal mode, use gray/black based on validation state
+                    if reader_mode:
+                        color = '#000000'  # Black for reader mode
+                    else:
+                        color = '#000000' if is_validated else '#9CA3AF'  # Black if validated, gray if pending
                     
                     if hasattr(self.viewer_widget, 'add_annotation_marker'):
                         self.viewer_widget.add_annotation_marker(ann_id, point, color)
                 
-                logger.info(f"Loaded {len(annotations)} annotations for {file_path}")
+                logger.info(f"Loaded {len(annotations)} annotations for {file_path} (reader_mode={reader_mode})")
                 
         except Exception as e:
             logger.warning(f"Failed to load annotations: {e}")

@@ -476,6 +476,17 @@ class ViewControlsToolbar(QWidget):
         self.annotation_btn.set_icon("📝")
         self.annotation_btn.set_active(False)
     
+    def set_reader_mode(self, enabled: bool):
+        """Enable or disable reader mode (disables annotation button)."""
+        if enabled:
+            self.annotation_btn.setEnabled(False)
+            self.annotation_btn.setToolTip("Annotations are read-only for this file")
+        else:
+            # Re-enable only if model is loaded
+            if self.stl_loaded:
+                self.annotation_btn.setEnabled(True)
+            self.annotation_btn.setToolTip("Add annotations to the model")
+    
     def set_loaded_filename(self, filename):
         """Update the load button tooltip to show the loaded filename."""
         if filename:
