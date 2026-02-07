@@ -430,7 +430,8 @@ class STLViewerWindow(QMainWindow):
         """Connect annotation panel signals to handler methods."""
         self.annotation_panel.annotation_added.connect(self._on_annotation_added)
         self.annotation_panel.annotation_deleted.connect(self._on_annotation_deleted)
-        self.annotation_panel.annotation_read_changed.connect(self._on_annotation_read_changed)
+        self.annotation_panel.annotation_validated.connect(self._on_annotation_validated)
+        self.annotation_panel.open_popup_requested.connect(self._on_open_popup_requested)
         self.annotation_panel.focus_annotation.connect(self._on_focus_annotation)
         self.annotation_panel.exit_annotation_mode.connect(self._exit_annotation_mode)
         self.annotation_panel.clear_all_requested.connect(self._clear_all_annotations)
@@ -466,15 +467,15 @@ class STLViewerWindow(QMainWindow):
         logger.info("_exit_annotation_mode: Annotation mode disabled")
     
     def _on_annotation_point_picked(self, point: tuple):
-        """Handle point picked for annotation."""
+        """Handle point picked for annotation - creates gray dot."""
         logger.info(f"_on_annotation_point_picked: Point picked at {point}")
         
-        # Add annotation to panel (this will trigger _on_annotation_added)
+        # Add annotation to panel (pending/gray)
         annotation = self.annotation_panel.add_annotation(point)
         
-        # Add visual marker to the viewer
+        # Add gray visual marker to the viewer (pending state)
         if hasattr(self.viewer_widget, 'add_annotation_marker'):
-            self.viewer_widget.add_annotation_marker(annotation.id, point, '#3B82F6')
+            self.viewer_widget.add_annotation_marker(annotation.id, point, '#9CA3AF')  # Gray
     
     def _on_annotation_added(self, annotation):
         """Handle annotation added event."""
@@ -485,6 +486,50 @@ class STLViewerWindow(QMainWindow):
         if hasattr(self.viewer_widget, 'remove_annotation_marker'):
             self.viewer_widget.remove_annotation_marker(annotation_id)
         logger.info(f"_on_annotation_deleted: Annotation {annotation_id} removed")
+    
+    def _on_open_popup_requested(self, annotation_id: int):
+        """Handle request to open popup for an annotation."""
+        from ui.annotation_popup import AnnotationPopup
+        
+        annotation = self.annotation_panel.get_annotation_by_id(annotation_id)
+        if annotation is None:
+            return
+        
+        # Create and show popup
+        popup = AnnotationPopup(
+            annotation_id=annotation.id,
+            point=annotation.point,
+            text=annotation.text,
+            image_paths=annotation.image_paths,
+            parent=self
+        )
+        
+        # Connect popup signals
+        popup.annotation_validated.connect(self._on_popup_validated)
+        popup.annotation_deleted.connect(self._on_popup_deleted)
+        
+        popup.show()
+        logger.info(f"_on_open_popup_requested: Opened popup for annotation {annotation_id}")
+    
+    def _on_popup_validated(self, annotation_id: int, text: str, image_paths: list):
+        """Handle annotation validated from popup - turn dot black."""
+        # Update annotation in panel
+        self.annotation_panel.validate_annotation(annotation_id, text, image_paths)
+        
+        # Update marker color to black (validated)
+        if hasattr(self.viewer_widget, 'update_annotation_marker_color'):
+            self.viewer_widget.update_annotation_marker_color(annotation_id, '#000000')  # Black
+        
+        logger.info(f"_on_popup_validated: Annotation {annotation_id} validated")
+    
+    def _on_popup_deleted(self, annotation_id: int):
+        """Handle annotation deleted from popup."""
+        self.annotation_panel.remove_annotation(annotation_id)
+        logger.info(f"_on_popup_deleted: Annotation {annotation_id} deleted from popup")
+    
+    def _on_annotation_validated(self, annotation_id: int, text: str, image_paths: list):
+        """Handle annotation validated event from panel."""
+        logger.info(f"_on_annotation_validated: Annotation {annotation_id} validated")
     
     def _on_focus_annotation(self, annotation_id: int):
         """Handle focus annotation request."""
@@ -497,13 +542,6 @@ class STLViewerWindow(QMainWindow):
             self.viewer_widget.clear_all_annotation_markers()
         self.annotation_panel.clear_all()
         logger.info("_clear_all_annotations: All annotations cleared")
-    
-    def _on_annotation_read_changed(self, annotation_id: int, is_read: bool):
-        """Handle annotation read status change - update marker color."""
-        if hasattr(self.viewer_widget, 'update_annotation_marker_color'):
-            color = '#10B981' if is_read else '#3B82F6'  # Green if read, blue if unread
-            self.viewer_widget.update_annotation_marker_color(annotation_id, color)
-        logger.info(f"_on_annotation_read_changed: Annotation {annotation_id} is_read={is_read}")
     
     def _toggle_fullscreen(self):
         """Toggle fullscreen mode."""
