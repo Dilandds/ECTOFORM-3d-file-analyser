@@ -766,8 +766,14 @@ class STLViewerWidget(QWidget):
             self._ruler_picker = None
 
     def _on_ruler_left_click(self, obj, event):
-        """VTK callback for left-click picking while ruler mode is enabled."""
-        if not self.ruler_mode or self.plotter is None or self._ruler_picker is None:
+        """VTK callback for left-click picking while ruler mode is enabled.
+        
+        In ruler mode we use orthographic views, so we project the screen click
+        directly onto the view plane (at the model's focal depth) instead of
+        ray-casting to the mesh surface.  This avoids vertex-snapping sensitivity
+        issues and lets the user place measurement dots exactly where they click.
+        """
+        if not self.ruler_mode or self.plotter is None:
             return
 
         iren = self._get_vtk_interactor()
@@ -779,7 +785,6 @@ class STLViewerWidget(QWidget):
         except Exception:
             return
 
-        # INFO-level on purpose: this is the easiest way to confirm clicks are reaching VTK.
         logger.info(f"_on_ruler_left_click: click screen=({x},{y})")
 
         renderer = getattr(self.plotter, 'renderer', None)
@@ -794,29 +799,33 @@ class STLViewerWidget(QWidget):
             return
 
         try:
-            self._ruler_picker.Pick(x, y, 0, renderer)
-            cell_id = self._ruler_picker.GetCellId()
-            if cell_id == -1:
-                logger.info(f"_on_ruler_left_click: No hit at ({x}, {y})")
-                return
+            import vtk
+            import numpy as np
 
-            picked_world = self._ruler_picker.GetPickPosition()
+            # --- Convert screen click to world coordinates on the focal plane ---
+            # In orthographic projection the mapping is affine (no perspective),
+            # so XY in the view plane are exact regardless of depth.
+            camera = renderer.GetActiveCamera()
+            focal_pt = np.array(camera.GetFocalPoint())
 
-            # Snap to nearest mesh vertex for consistent repeatability
-            snapped = picked_world
-            try:
-                if self.current_mesh is not None and hasattr(self.current_mesh, 'find_closest_point'):
-                    idx = self.current_mesh.find_closest_point(picked_world)
-                    snapped = self.current_mesh.points[int(idx)]
-            except Exception as e:
-                logger.debug(f"_on_ruler_left_click: Vertex snapping failed: {e}")
+            # Use VTK coordinate system to convert display -> world at focal depth
+            coord = vtk.vtkCoordinate()
+            coord.SetCoordinateSystemToDisplay()
+            coord.SetValue(float(x), float(y), 0.0)
+            world_near = np.array(coord.GetComputedWorldValue(renderer))
+
+            # world_near is on the near clip plane.  We need to shift it along the
+            # camera direction so that the depth component equals the focal plane.
+            cam_dir = np.array(camera.GetDirectionOfProjection())
+            # Project difference onto camera direction to get depth offset
+            offset = np.dot(focal_pt - world_near, cam_dir)
+            world_pos = world_near + cam_dir * offset
 
             logger.info(
-                f"_on_ruler_left_click: hit cell_id={cell_id} screen=({x},{y}) world={picked_world} snapped={snapped}"
+                f"_on_ruler_left_click: screen=({x},{y}) world={world_pos}"
             )
 
-            # Reuse the existing measurement pipeline
-            self._on_point_picked(snapped)
+            self._on_point_picked(world_pos)
         except Exception as e:
             logger.error(f"_on_ruler_left_click: Picking failed: {e}", exc_info=True)
 
@@ -931,7 +940,7 @@ class STLViewerWidget(QWidget):
             sphere = pv.Sphere(radius=sphere_radius, center=point)
             actor = self.plotter.add_mesh(
                 sphere, 
-                color='black', 
+                color='#FF69B4', 
                 name=f'measure_pt_{len(self.measurement_points)}_{id(point)}'
             )
             # Make marker always render in front (disable depth testing)
@@ -967,8 +976,8 @@ class STLViewerWidget(QWidget):
                 bounds[3] - bounds[2],  # y range
                 bounds[5] - bounds[4],  # z range
             )
-            # Marker size is ~0.5% of the largest dimension
-            return max(max_dimension * 0.005, 0.05)
+            # Marker size is ~0.25% of the largest dimension for precision
+            return max(max_dimension * 0.0025, 0.03)
         except Exception as e:
             logger.warning(f"_get_measurement_marker_size: Could not calculate size: {e}")
             return 1.0
@@ -1002,12 +1011,14 @@ class STLViewerWidget(QWidget):
             arrow_shaft_radius = max(length * 0.004, 0.05)
             arrow_tip_radius = arrow_shaft_radius * 2.5
             
-            # Create the main line (black)
+            # Create the main line as a tube for smooth, crack-free rendering
+            tube_radius = max(length * 0.0015, 0.02)
             line = pv.Line(point1, point2)
+            tube = line.tube(radius=tube_radius, n_sides=16)
             line_actor = self.plotter.add_mesh(
-                line,
+                tube,
                 color='black',
-                line_width=2,
+                smooth_shading=True,
                 name=f'measure_line_{id(point1)}'
             )
             # Make line always render in front
@@ -1101,12 +1112,18 @@ class STLViewerWidget(QWidget):
         
         logger.info("clear_measurements: Clearing all measurements...")
         
-        # Remove all measurement actors
+        # Remove all measurement actors from both main and overlay renderers
+        overlay = getattr(self, '_overlay_renderer', None)
         for actor in self.measurement_actors:
             try:
                 self.plotter.remove_actor(actor)
-            except Exception as e:
-                logger.debug(f"clear_measurements: Could not remove actor: {e}")
+            except Exception:
+                pass
+            try:
+                if overlay is not None:
+                    overlay.RemoveActor(actor)
+            except Exception:
+                pass
         
         self.measurement_actors = []
         self.measurement_points = []
@@ -1170,24 +1187,59 @@ class STLViewerWidget(QWidget):
         except Exception as e:
             logger.warning(f"_restore_full_interaction: Failed: {e}")
     
+    def _get_overlay_renderer(self):
+        """Get or create an overlay renderer that always renders on top of the main scene."""
+        if getattr(self, '_overlay_renderer', None) is not None:
+            return self._overlay_renderer
+        
+        try:
+            import vtk
+            render_window = self.plotter.render_window
+            
+            # Create overlay renderer on layer 1 (main scene is layer 0)
+            self._overlay_renderer = vtk.vtkRenderer()
+            self._overlay_renderer.SetLayer(1)
+            self._overlay_renderer.InteractiveOff()
+            
+            # Transparent background so main scene shows through
+            self._overlay_renderer.SetBackground(0, 0, 0)
+            render_window.SetAlphaBitPlanes(True)
+            self._overlay_renderer.SetBackgroundAlpha(0.0)
+            
+            # Enable multiple layers
+            render_window.SetNumberOfLayers(2)
+            render_window.AddRenderer(self._overlay_renderer)
+            
+            # Share the same camera so views stay in sync
+            self._overlay_renderer.SetActiveCamera(
+                self.plotter.renderer.GetActiveCamera()
+            )
+            
+            logger.debug("_get_overlay_renderer: Overlay renderer created")
+        except Exception as e:
+            logger.warning(f"_get_overlay_renderer: Failed to create overlay renderer: {e}")
+            self._overlay_renderer = None
+        
+        return self._overlay_renderer
+
     def _set_actor_always_on_top(self, actor):
-        """Make an actor always render in front (disable depth testing)."""
+        """Move an actor to the overlay renderer so it always renders in front."""
         if actor is None:
             return
         try:
-            prop = actor.GetProperty()
-            if prop is not None:
-                # Disable depth testing so it renders on top
-                prop.SetAmbient(1.0)
-                prop.SetDiffuse(0.0)
-            # Set the actor to render in the overlay layer
-            actor.SetVisibility(True)
-            # Force it to not be occluded by setting mapper to ignore depth
-            mapper = actor.GetMapper()
-            if mapper is not None:
-                mapper.SetResolveCoincidentTopologyToPolygonOffset()
-                mapper.SetRelativeCoincidentTopologyPolygonOffsetParameters(-1, -1)
-            logger.debug("_set_actor_always_on_top: Actor set to render on top")
+            overlay = self._get_overlay_renderer()
+            if overlay is not None:
+                # Remove from main renderer and add to overlay
+                self.plotter.renderer.RemoveActor(actor)
+                overlay.AddActor(actor)
+                logger.debug("_set_actor_always_on_top: Actor moved to overlay renderer")
+            else:
+                # Fallback: use polygon offset if overlay renderer unavailable
+                mapper = actor.GetMapper()
+                if mapper is not None:
+                    mapper.SetResolveCoincidentTopologyToPolygonOffset()
+                    mapper.SetRelativeCoincidentTopologyPolygonOffsetParameters(-2, -2)
+                logger.debug("_set_actor_always_on_top: Fallback polygon offset applied")
         except Exception as e:
             logger.debug(f"_set_actor_always_on_top: Failed: {e}")
     
@@ -1451,8 +1503,17 @@ class STLViewerWidget(QWidget):
             return None
         
         try:
-            # Calculate sphere size based on mesh bounds
-            sphere_radius = self._get_measurement_marker_size() * 1.5
+            # Use a small fixed-ratio size (~0.15% of model) for consistent precise markers
+            try:
+                bounds = self.current_mesh.bounds
+                max_dim = max(
+                    bounds[1] - bounds[0],
+                    bounds[3] - bounds[2],
+                    bounds[5] - bounds[4],
+                )
+                sphere_radius = max(max_dim * 0.0015, 0.02)
+            except Exception:
+                sphere_radius = 0.3
             
             sphere = pv.Sphere(radius=sphere_radius, center=point)
             actor = self.plotter.add_mesh(

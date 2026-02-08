@@ -110,23 +110,26 @@ class AnnotationCard(QFrame):
         self.coord_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 9px;")
         layout.addWidget(self.coord_label)
         
-        # Focus button
-        self.focus_btn = QPushButton("🎯")
-        self.focus_btn.setFixedSize(24, 24)
-        self.focus_btn.setCursor(Qt.PointingHandCursor)
-        self.focus_btn.setStyleSheet(f"""
+        # Delete button (cross)
+        self.delete_btn = QPushButton("✕")
+        self.delete_btn.setFixedSize(24, 24)
+        self.delete_btn.setCursor(Qt.PointingHandCursor)
+        self.delete_btn.setToolTip("Remove annotation")
+        self.delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
                 border: none;
-                font-size: 12px;
+                font-size: 13px;
+                color: {default_theme.text_secondary};
             }}
             QPushButton:hover {{
-                background-color: {default_theme.row_bg_hover};
+                background-color: #FEE2E2;
+                color: #DC2626;
                 border-radius: 12px;
             }}
         """)
-        self.focus_btn.clicked.connect(lambda: self.focus_requested.emit(self.annotation.id))
-        layout.addWidget(self.focus_btn)
+        self.delete_btn.clicked.connect(lambda: self.delete_requested.emit(self.annotation.id))
+        layout.addWidget(self.delete_btn)
     
     def mousePressEvent(self, event):
         """Handle click to open popup."""
