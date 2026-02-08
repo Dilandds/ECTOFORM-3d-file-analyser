@@ -648,6 +648,9 @@ class STLViewerWindow(QMainWindow):
                     if mesh is not None:
                         mesh_data = MeshCalculator.get_mesh_data(mesh)
                         self.sidebar_panel.update_dimensions(mesh_data, file_path)
+                
+                # Load any existing annotations for this file
+                self._load_annotations_for_file(file_path)
         else:
             logger.info("upload_stl_file: File selection cancelled")
     
