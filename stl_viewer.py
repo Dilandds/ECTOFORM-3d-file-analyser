@@ -672,16 +672,16 @@ class STLViewerWindow(QMainWindow):
             success = MeshCalculator.export_stl(scaled_mesh, file_path)
             
             if success:
-            # Also save annotations if any (with reader_mode enabled for recipients)
-            annotations = self.annotation_panel.export_annotations()
-            if annotations:
-                from core.annotation_exporter import AnnotationExporter
-                AnnotationExporter.save_annotations(
-                    annotations, file_path, 
-                    reader_mode=True,  # Enable reader mode for recipients
-                    bundle_images=True  # Bundle images with export
-                )
-                logger.info(f"export_scaled_stl: Saved {len(annotations)} annotations with reader_mode")
+                # Also save annotations if any (with reader_mode enabled for recipients)
+                annotations = self.annotation_panel.export_annotations()
+                if annotations:
+                    from core.annotation_exporter import AnnotationExporter
+                    AnnotationExporter.save_annotations(
+                        annotations, file_path, 
+                        reader_mode=True,  # Enable reader mode for recipients
+                        bundle_images=True  # Bundle images with export
+                    )
+                    logger.info(f"export_scaled_stl: Saved {len(annotations)} annotations with reader_mode")
                 
                 logger.info(f"export_scaled_stl: Successfully exported to {file_path}")
                 msg = f"Scaled STL file exported successfully to:\n{file_path}"
