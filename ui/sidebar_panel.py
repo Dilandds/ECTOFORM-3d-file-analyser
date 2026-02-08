@@ -155,6 +155,10 @@ class SidebarPanel(QWidget):
         self.pdf_report_group = self.create_pdf_report_section()
         layout.addWidget(self.pdf_report_group)
         
+        # Create Export with Annotations section
+        self.export_annotations_group = self.create_export_annotations_section()
+        layout.addWidget(self.export_annotations_group)
+        
         # Add stretch
         layout.addStretch()
         
@@ -935,3 +939,233 @@ class SidebarPanel(QWidget):
                 return parent.viewer_widget.current_mesh
             parent = parent.parent()
         return None
+    
+    def create_export_annotations_section(self):
+        """Create the Export with Annotations section."""
+        card = QFrame()
+        card.setObjectName("exportAnnotationsCard")
+        card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(10)
+        
+        # Header row with title and icon
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        
+        title_label = QLabel("Export with Annotations")
+        title_font = QFont()
+        title_font.setPointSize(14)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setStyleSheet(f"color: {default_theme.text_title}; margin-bottom: 4px;")
+        
+        icon_label = QLabel("📝")
+        icon_label.setStyleSheet(f"color: {default_theme.icon_blue}; font-size: 16px;")
+        icon_label.setAlignment(Qt.AlignCenter)
+        
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        header_layout.addWidget(icon_label)
+        card_layout.addLayout(header_layout)
+        
+        # Description
+        desc_label = QLabel("Export the 3D model with all annotations bundled.\nRecipients will see annotations in read-only mode.")
+        desc_font = QFont()
+        desc_font.setPointSize(11)
+        desc_label.setFont(desc_font)
+        desc_label.setStyleSheet(f"color: {default_theme.text_secondary};")
+        desc_label.setWordWrap(True)
+        card_layout.addWidget(desc_label)
+        
+        # Annotation count label
+        self.annotation_count_label = QLabel("No annotations to export")
+        self.annotation_count_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-style: italic;")
+        card_layout.addWidget(self.annotation_count_label)
+        
+        # Export button
+        self.export_annotations_btn = QPushButton("Export with Annotations")
+        self.export_annotations_btn.setObjectName("exportAnnotationsBtn")
+        self.export_annotations_btn.setMinimumHeight(44)
+        self.export_annotations_btn.setEnabled(False)
+        self.export_annotations_btn.setStyleSheet(f"""
+            QPushButton#exportAnnotationsBtn {{
+                background-color: #8B5CF6;
+                color: {default_theme.text_white};
+                border: none;
+                border-radius: 8px;
+                padding: 10px 16px;
+                font-size: 13px;
+                font-weight: bold;
+            }}
+            QPushButton#exportAnnotationsBtn:hover {{
+                background-color: #7C3AED;
+            }}
+            QPushButton#exportAnnotationsBtn:pressed {{
+                background-color: #6D28D9;
+            }}
+            QPushButton#exportAnnotationsBtn:disabled {{
+                background-color: {default_theme.button_default_bg};
+                color: {default_theme.text_primary};
+            }}
+        """)
+        self.export_annotations_btn.clicked.connect(self.export_with_annotations)
+        card_layout.addWidget(self.export_annotations_btn)
+        
+        # Information footer
+        footer_frame = QFrame()
+        footer_frame.setObjectName("exportAnnotationsFooter")
+        footer_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        footer_frame.setMinimumHeight(36)
+        footer_frame.setStyleSheet(f"""
+            QFrame#exportAnnotationsFooter {{
+                background-color: {default_theme.background};
+                border: 1px solid {default_theme.border_standard};
+                border-radius: 6px;
+            }}
+        """)
+        
+        footer_layout = QHBoxLayout(footer_frame)
+        footer_layout.setContentsMargins(10, 6, 10, 6)
+        footer_layout.setSpacing(8)
+        
+        info_icon = QLabel("ℹ️")
+        info_icon.setStyleSheet(f"color: {default_theme.icon_info_gray}; font-size: 11px;")
+        info_icon.setFixedWidth(18)
+        info_icon.setAlignment(Qt.AlignTop)
+        
+        disclaimer = QLabel("Creates: model file + .annotations.json + images folder. Share all files together.")
+        disclaimer_font = QFont()
+        disclaimer_font.setPointSize(9)
+        disclaimer.setFont(disclaimer_font)
+        disclaimer.setStyleSheet(f"color: {default_theme.icon_info_gray};")
+        disclaimer.setWordWrap(True)
+        
+        footer_layout.addWidget(info_icon)
+        footer_layout.addWidget(disclaimer)
+        footer_layout.addStretch()
+        
+        card_layout.addWidget(footer_frame)
+        
+        # Add shadow effect
+        self._add_card_shadow(card)
+        
+        return card
+    
+    def update_annotation_count(self, count: int):
+        """Update the annotation count label and button state."""
+        if count == 0:
+            self.annotation_count_label.setText("No annotations to export")
+            self.export_annotations_btn.setEnabled(self.has_stl_loaded)
+        else:
+            self.annotation_count_label.setText(f"📌 {count} annotation{'s' if count != 1 else ''} ready to export")
+            self.export_annotations_btn.setEnabled(self.has_stl_loaded)
+    
+    def export_with_annotations(self):
+        """Export the current model with all annotations bundled."""
+        if not self.has_stl_loaded:
+            QMessageBox.warning(
+                self,
+                "Export Error",
+                "No 3D model loaded. Please load a model first."
+            )
+            return
+        
+        # Get current mesh
+        mesh = self._get_current_mesh()
+        if mesh is None:
+            QMessageBox.warning(
+                self,
+                "Export Error",
+                "No 3D model available for export."
+            )
+            return
+        
+        # Get annotations from annotation panel
+        annotations = self._get_annotations()
+        
+        if not annotations:
+            reply = QMessageBox.question(
+                self,
+                "No Annotations",
+                "There are no annotations to export.\nDo you want to export the model without annotations?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+        
+        # Open save dialog
+        default_name = f"{os.path.splitext(self.current_stl_filename)[0]}_annotated.stl"
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export Model with Annotations",
+            default_name,
+            "STL Files (*.stl);;OBJ Files (*.obj);;All Files (*)"
+        )
+        
+        if not file_path:
+            return
+        
+        # Ensure appropriate extension
+        if not any(file_path.lower().endswith(ext) for ext in ['.stl', '.obj']):
+            file_path += '.stl'
+        
+        try:
+            from core.annotation_exporter import AnnotationExporter
+            
+            # Show progress
+            self.export_annotations_btn.setEnabled(False)
+            self.export_annotations_btn.setText("Exporting...")
+            QApplication.processEvents()
+            
+            # Export model with annotations
+            success, result = AnnotationExporter.export_with_model(
+                mesh, 
+                annotations, 
+                file_path,
+                reader_mode=True  # Recipients see read-only annotations
+            )
+            
+            # Restore button
+            self.export_annotations_btn.setEnabled(True)
+            self.export_annotations_btn.setText("Export with Annotations")
+            
+            if success:
+                # Build success message
+                msg = f"Export complete!\n\n{result}\n\nFiles created:"
+                msg += f"\n• {os.path.basename(file_path)}"
+                if annotations:
+                    msg += f"\n• {os.path.splitext(os.path.basename(file_path))[0]}.annotations.json"
+                    # Check if images folder was created
+                    images_folder = AnnotationExporter.get_images_folder_path(file_path)
+                    if os.path.exists(images_folder):
+                        msg += f"\n• {os.path.basename(images_folder)}/ (images)"
+                
+                QMessageBox.information(self, "Export Complete", msg)
+            else:
+                QMessageBox.critical(
+                    self,
+                    "Export Error",
+                    f"Failed to export model with annotations:\n{result}"
+                )
+        except Exception as e:
+            logger.error(f"Error exporting with annotations: {e}")
+            self.export_annotations_btn.setEnabled(True)
+            self.export_annotations_btn.setText("Export with Annotations")
+            QMessageBox.critical(
+                self,
+                "Export Error",
+                f"Failed to export model with annotations:\n{str(e)}"
+            )
+    
+    def _get_annotations(self):
+        """Get annotations from the annotation panel."""
+        # Navigate up to find the main window and get annotations
+        parent = self.parent()
+        while parent is not None:
+            if hasattr(parent, 'annotation_panel') and hasattr(parent.annotation_panel, 'export_annotations'):
+                return parent.annotation_panel.export_annotations()
+            parent = parent.parent()
+        return []

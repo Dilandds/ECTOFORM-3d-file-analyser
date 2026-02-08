@@ -481,12 +481,14 @@ class STLViewerWindow(QMainWindow):
     def _on_annotation_added(self, annotation):
         """Handle annotation added event."""
         logger.info(f"_on_annotation_added: Annotation {annotation.id} added")
+        self._update_sidebar_annotation_count()
     
     def _on_annotation_deleted(self, annotation_id: int):
         """Handle annotation deleted event."""
         if hasattr(self.viewer_widget, 'remove_annotation_marker'):
             self.viewer_widget.remove_annotation_marker(annotation_id)
         logger.info(f"_on_annotation_deleted: Annotation {annotation_id} removed")
+        self._update_sidebar_annotation_count()
     
     def _on_open_popup_requested(self, annotation_id: int):
         """Handle request to open popup for an annotation."""
@@ -563,6 +565,12 @@ class STLViewerWindow(QMainWindow):
             self.viewer_widget.clear_all_annotation_markers()
         self.annotation_panel.clear_all()
         logger.info("_clear_all_annotations: All annotations cleared")
+        self._update_sidebar_annotation_count()
+    
+    def _update_sidebar_annotation_count(self):
+        """Update the sidebar panel with the current annotation count."""
+        count = len(self.annotation_panel.annotations)
+        self.sidebar_panel.update_annotation_count(count)
     
     def _toggle_fullscreen(self):
         """Toggle fullscreen mode."""
@@ -748,6 +756,9 @@ class STLViewerWindow(QMainWindow):
                         self.viewer_widget.add_annotation_marker(ann_id, point, color)
                 
                 logger.info(f"Loaded {len(annotations)} annotations for {file_path} (reader_mode={reader_mode})")
+                
+                # Update sidebar annotation count
+                self._update_sidebar_annotation_count()
                 
         except Exception as e:
             logger.warning(f"Failed to load annotations: {e}")
