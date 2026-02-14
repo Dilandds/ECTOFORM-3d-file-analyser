@@ -312,7 +312,7 @@ class AnnotationPopup(QDialog):
         # Add new thumbnails - each fills full width
         for path in self.image_paths:
             thumb = ImageThumbnail(path)
-            thumb.setMinimumHeight(180)
+            thumb.setMinimumHeight(350)
             thumb.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             thumb.remove_requested.connect(self._remove_photo)
             self.photos_layout.addWidget(thumb)
