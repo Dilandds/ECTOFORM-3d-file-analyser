@@ -86,6 +86,8 @@ class STLViewerWidget(QWidget):
         # Ruler picking internals (VTK observer-based; more reliable than PyVista helpers in QtInteractor)
         self._ruler_click_observer_id = None
         self._ruler_picker = None
+        self._ruler_mouse_move_observer_id = None
+        self._preview_line_actor = None
         
         # Annotation mode state
         self.annotation_mode = False
@@ -740,30 +742,122 @@ class STLViewerWidget(QWidget):
                 self._on_ruler_left_click,
                 1.0,  # high priority
             )
-            logger.info("_install_ruler_click_picking: VTK click observer installed")
+            self._ruler_mouse_move_observer_id = iren.AddObserver(
+                "MouseMoveEvent",
+                self._on_ruler_mouse_move,
+                0.0,  # normal priority
+            )
+            logger.info("_install_ruler_click_picking: VTK click and mouse-move observers installed")
             return True
         except Exception as e:
             logger.error(f"_install_ruler_click_picking: Failed to add observer: {e}", exc_info=True)
             self._ruler_click_observer_id = None
+            self._ruler_mouse_move_observer_id = None
             self._ruler_picker = None
             return False
 
     def _uninstall_ruler_click_picking(self):
-        """Remove VTK observer used for ruler picking."""
-        if self._ruler_click_observer_id is None:
-            self._ruler_picker = None
-            return
-
+        """Remove VTK observers used for ruler picking and preview."""
         iren = self._get_vtk_interactor()
         try:
             if iren is not None:
-                iren.RemoveObserver(self._ruler_click_observer_id)
-                logger.info("_uninstall_ruler_click_picking: VTK click observer removed")
+                if self._ruler_click_observer_id is not None:
+                    iren.RemoveObserver(self._ruler_click_observer_id)
+                if self._ruler_mouse_move_observer_id is not None:
+                    iren.RemoveObserver(self._ruler_mouse_move_observer_id)
+                logger.info("_uninstall_ruler_click_picking: VTK observers removed")
         except Exception as e:
             logger.debug(f"_uninstall_ruler_click_picking: Could not remove observer: {e}")
         finally:
             self._ruler_click_observer_id = None
+            self._ruler_mouse_move_observer_id = None
             self._ruler_picker = None
+            self._clear_preview_line()
+
+    def _screen_to_world_focal_plane(self, x, y):
+        """Convert screen (x, y) to world coordinates on the camera's focal plane.
+        
+        Used for ruler mode so clicks and mouse position map to the view plane.
+        Returns (x, y, z) world tuple or None on failure.
+        """
+        renderer = getattr(self.plotter, 'renderer', None)
+        if renderer is None:
+            try:
+                renderer = self.plotter.ren_win.GetRenderers().GetFirstRenderer()
+            except Exception:
+                return None
+        if renderer is None:
+            return None
+        try:
+            import vtk
+            import numpy as np
+            camera = renderer.GetActiveCamera()
+            focal_pt = np.array(camera.GetFocalPoint())
+            coord = vtk.vtkCoordinate()
+            coord.SetCoordinateSystemToDisplay()
+            coord.SetValue(float(x), float(y), 0.0)
+            world_near = np.array(coord.GetComputedWorldValue(renderer))
+            cam_dir = np.array(camera.GetDirectionOfProjection())
+            offset = np.dot(focal_pt - world_near, cam_dir)
+            world_pos = world_near + cam_dir * offset
+            return tuple(world_pos)
+        except Exception:
+            return None
+
+    def _clear_preview_line(self):
+        """Remove the preview line actor from the overlay."""
+        overlay = getattr(self, '_overlay_renderer', None)
+        actor = getattr(self, '_preview_line_actor', None)
+        if actor is not None and overlay is not None:
+            try:
+                overlay.RemoveActor(actor)
+            except Exception:
+                pass
+        self._preview_line_actor = None
+
+    def _update_preview_line(self, point1, point2):
+        """Draw or update the preview line from point1 to point2 (follows mouse)."""
+        if point1 is None or point2 is None:
+            self._clear_preview_line()
+            return
+        try:
+            self._clear_preview_line()
+            line = pv.Line(point1, point2)
+            tube_radius = self._get_line_tube_radius()
+            tube = line.tube(radius=tube_radius, n_sides=12)
+            actor = self._add_mesh_to_overlay(tube, color='black', smooth_shading=False)
+            if actor is not None:
+                self._preview_line_actor = actor
+            try:
+                self.plotter.render()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug(f"_update_preview_line: {e}")
+
+    def _get_nearest_mesh_point(self, world_pos, max_distance_ratio=0.02):
+        """Return the nearest mesh vertex to world_pos if within threshold, else world_pos.
+        
+        Helps snap to corners/edges of the 3D model. max_distance_ratio is relative to model size.
+        """
+        if self.current_mesh is None:
+            return world_pos
+        try:
+            import numpy as np
+            pts = self.current_mesh.points
+            if pts is None or len(pts) == 0:
+                return world_pos
+            p = np.array(world_pos)
+            bounds = self.current_mesh.bounds
+            max_dim = max(bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4])
+            threshold = max_dim * max_distance_ratio
+            dists = np.linalg.norm(pts - p, axis=1)
+            idx = np.argmin(dists)
+            if dists[idx] <= threshold:
+                return tuple(pts[idx])
+            return world_pos
+        except Exception:
+            return world_pos
 
     def _on_ruler_left_click(self, obj, event):
         """VTK callback for left-click picking while ruler mode is enabled.
@@ -787,47 +881,40 @@ class STLViewerWidget(QWidget):
 
         logger.info(f"_on_ruler_left_click: click screen=({x},{y})")
 
-        renderer = getattr(self.plotter, 'renderer', None)
-        if renderer is None:
-            try:
-                renderer = self.plotter.ren_win.GetRenderers().GetFirstRenderer()
-            except Exception:
-                renderer = None
-
-        if renderer is None:
+        world_pos = self._screen_to_world_focal_plane(x, y)
+        if world_pos is None:
             logger.info("_on_ruler_left_click: No renderer available")
             return
 
+        logger.info(f"_on_ruler_left_click: screen=({x},{y}) world={world_pos}")
+        self._on_point_picked(world_pos)
+
+    def _on_ruler_mouse_move(self, obj, event):
+        """Update preview line from first point to mouse position (with perpendicular + corner snapping)."""
+        if not self.ruler_mode or self.plotter is None or len(self.measurement_points) != 1:
+            self._clear_preview_line()
+            return
+
+        iren = self._get_vtk_interactor()
+        if iren is None:
+            return
         try:
-            import vtk
-            import numpy as np
+            x, y = iren.GetEventPosition()
+        except Exception:
+            return
 
-            # --- Convert screen click to world coordinates on the focal plane ---
-            # In orthographic projection the mapping is affine (no perspective),
-            # so XY in the view plane are exact regardless of depth.
-            camera = renderer.GetActiveCamera()
-            focal_pt = np.array(camera.GetFocalPoint())
+        world_pos = self._screen_to_world_focal_plane(x, y)
+        if world_pos is None:
+            return
 
-            # Use VTK coordinate system to convert display -> world at focal depth
-            coord = vtk.vtkCoordinate()
-            coord.SetCoordinateSystemToDisplay()
-            coord.SetValue(float(x), float(y), 0.0)
-            world_near = np.array(coord.GetComputedWorldValue(renderer))
+        # Snap to nearest mesh vertex when close (helps connect corners); else snap to perpendicular
+        nearest = self._get_nearest_mesh_point(world_pos)
+        if nearest != world_pos:
+            snapped = nearest  # Use corner/vertex when close
+        else:
+            snapped = self._snap_to_axis(self.measurement_points[0], world_pos)  # Horizontal/vertical
 
-            # world_near is on the near clip plane.  We need to shift it along the
-            # camera direction so that the depth component equals the focal plane.
-            cam_dir = np.array(camera.GetDirectionOfProjection())
-            # Project difference onto camera direction to get depth offset
-            offset = np.dot(focal_pt - world_near, cam_dir)
-            world_pos = world_near + cam_dir * offset
-
-            logger.info(
-                f"_on_ruler_left_click: screen=({x},{y}) world={world_pos}"
-            )
-
-            self._on_point_picked(world_pos)
-        except Exception as e:
-            logger.error(f"_on_ruler_left_click: Picking failed: {e}", exc_info=True)
+        self._update_preview_line(self.measurement_points[0], snapped)
 
     def enable_ruler_mode(self):
         """Enable point-to-point measurement mode with orthographic projection."""
@@ -979,23 +1066,19 @@ class STLViewerWidget(QWidget):
         # Calculate adaptive sphere size based on mesh bounds
         sphere_radius = self._get_measurement_marker_size()
         
-        # Add sphere marker at picked point
+        # Add sphere marker directly to overlay (never to main) so it always renders on top
         try:
             sphere = pv.Sphere(radius=sphere_radius, center=point)
-            actor = self.plotter.add_mesh(
-                sphere, 
-                color='#FF69B4', 
-                name=f'measure_pt_{len(self.measurement_points)}_{id(point)}'
-            )
-            # Make marker always render in front (disable depth testing)
-            self._set_actor_always_on_top(actor)
-            self.measurement_actors.append(actor)
+            actor = self._add_mesh_to_overlay(sphere, color='#FF69B4')
+            if actor is not None:
+                self.measurement_actors.append(actor)
             logger.info(f"_on_point_picked: Marker added at {point}")
         except Exception as e:
             logger.warning(f"_on_point_picked: Could not add marker: {e}")
         
         # If we have two points, calculate and display the measurement
         if len(self.measurement_points) == 2:
+            self._clear_preview_line()
             distance = self._calculate_distance(
                 self.measurement_points[0], 
                 self.measurement_points[1]
@@ -1026,6 +1109,50 @@ class STLViewerWidget(QWidget):
             logger.warning(f"_get_measurement_marker_size: Could not calculate size: {e}")
             return 1.0
     
+    def _get_arrow_size(self):
+        """Calculate arrowhead size based on model dimensions (same approach as dots).
+        
+        Returns (arrow_tip_length, arrow_tip_radius) so arrows stay consistent
+        across all measurements regardless of line length.
+        """
+        if self.current_mesh is None:
+            return (0.2, 0.08)
+        try:
+            bounds = self.current_mesh.bounds
+            max_dimension = max(
+                bounds[1] - bounds[0],
+                bounds[3] - bounds[2],
+                bounds[5] - bounds[4],
+            )
+            # Arrow tip length ~2% of model max dimension (visible, consistent with dots)
+            arrow_tip_length = max(max_dimension * 0.02, 0.1)
+            # Tip radius for cone shape (~40% of height)
+            arrow_tip_radius = arrow_tip_length * 0.4
+            return (arrow_tip_length, arrow_tip_radius)
+        except Exception as e:
+            logger.warning(f"_get_arrow_size: Could not calculate size: {e}")
+            return (0.2, 0.08)
+    
+    def _get_line_tube_radius(self):
+        """Calculate line tube radius based on model dimensions (same approach as dots/arrows).
+        
+        Returns consistent tube radius across all measurements regardless of line length.
+        """
+        if self.current_mesh is None:
+            return 0.02
+        try:
+            bounds = self.current_mesh.bounds
+            max_dimension = max(
+                bounds[1] - bounds[0],
+                bounds[3] - bounds[2],
+                bounds[5] - bounds[4],
+            )
+            # Tube radius ~0.15% of model max dimension (visible, consistent)
+            return max(max_dimension * 0.0015, 0.02)
+        except Exception as e:
+            logger.warning(f"_get_line_tube_radius: Could not calculate size: {e}")
+            return 0.02
+    
     def _calculate_distance(self, point1, point2):
         """Calculate Euclidean distance between two 3D points."""
         import numpy as np
@@ -1050,26 +1177,19 @@ class STLViewerWidget(QWidget):
             
             dir_unit = direction / length
             
-            # Arrow size proportional to measurement length (~4% of distance)
-            arrow_tip_length = max(length * 0.04, 0.2)
-            arrow_shaft_radius = max(length * 0.004, 0.05)
-            arrow_tip_radius = arrow_shaft_radius * 2.5
+            # Arrow size from model dimensions (consistent across all measurements, like dots)
+            arrow_tip_length, arrow_tip_radius = self._get_arrow_size()
             
-            # Create the main line as a tube for smooth, crack-free rendering
-            tube_radius = max(length * 0.0015, 0.02)
+            # Create the main line as a tube; add directly to overlay so it always renders on top
+            # Tube radius from model dimensions (consistent across all measurements, flat black)
+            tube_radius = self._get_line_tube_radius()
             line = pv.Line(point1, point2)
             tube = line.tube(radius=tube_radius, n_sides=16)
-            line_actor = self.plotter.add_mesh(
-                tube,
-                color='black',
-                smooth_shading=True,
-                name=f'measure_line_{id(point1)}'
-            )
-            # Make line always render in front
-            self._set_actor_always_on_top(line_actor)
-            self.measurement_actors.append(line_actor)
+            line_actor = self._add_mesh_to_overlay(tube, color='black', smooth_shading=False)
+            if line_actor is not None:
+                self.measurement_actors.append(line_actor)
             
-            # Arrowhead at point1 (pointing from p2 toward p1)
+            # Arrowhead at point1 (pointing from p2 toward p1); add directly to overlay
             try:
                 cone1 = pv.Cone(
                     center=p1 + dir_unit * (arrow_tip_length / 2),
@@ -1078,18 +1198,13 @@ class STLViewerWidget(QWidget):
                     radius=arrow_tip_radius,
                     resolution=20,
                 )
-                cone1_actor = self.plotter.add_mesh(
-                    cone1,
-                    color='black',
-                    name=f'measure_arrow1_{id(point1)}'
-                )
-                # Make arrowhead always render in front
-                self._set_actor_always_on_top(cone1_actor)
-                self.measurement_actors.append(cone1_actor)
+                cone1_actor = self._add_mesh_to_overlay(cone1, color='black')
+                if cone1_actor is not None:
+                    self.measurement_actors.append(cone1_actor)
             except Exception as e:
                 logger.warning(f"_draw_measurement_line: Could not add arrowhead 1: {e}")
             
-            # Arrowhead at point2 (pointing from p1 toward p2)
+            # Arrowhead at point2 (pointing from p1 toward p2); add directly to overlay
             try:
                 cone2 = pv.Cone(
                     center=p2 - dir_unit * (arrow_tip_length / 2),
@@ -1098,14 +1213,9 @@ class STLViewerWidget(QWidget):
                     radius=arrow_tip_radius,
                     resolution=20,
                 )
-                cone2_actor = self.plotter.add_mesh(
-                    cone2,
-                    color='black',
-                    name=f'measure_arrow2_{id(point1)}'
-                )
-                # Make arrowhead always render in front
-                self._set_actor_always_on_top(cone2_actor)
-                self.measurement_actors.append(cone2_actor)
+                cone2_actor = self._add_mesh_to_overlay(cone2, color='black')
+                if cone2_actor is not None:
+                    self.measurement_actors.append(cone2_actor)
             except Exception as e:
                 logger.warning(f"_draw_measurement_line: Could not add arrowhead 2: {e}")
             
@@ -1157,7 +1267,8 @@ class STLViewerWidget(QWidget):
             return
         
         logger.info("clear_measurements: Clearing all measurements...")
-        
+        self._clear_preview_line()
+
         # Remove all measurement actors from both main and overlay renderers
         overlay = getattr(self, '_overlay_renderer', None)
         for actor in self.measurement_actors:
@@ -1247,6 +1358,9 @@ class STLViewerWidget(QWidget):
             self._overlay_renderer.SetLayer(1)
             self._overlay_renderer.InteractiveOff()
             
+            # Do NOT preserve depth buffer - overlay clears depth so measurements always render on top
+            self._overlay_renderer.SetPreserveDepthBuffer(0)
+            
             # Transparent background so main scene shows through
             self._overlay_renderer.SetBackground(0, 0, 0)
             render_window.SetAlphaBitPlanes(True)
@@ -1256,10 +1370,13 @@ class STLViewerWidget(QWidget):
             render_window.SetNumberOfLayers(2)
             render_window.AddRenderer(self._overlay_renderer)
             
-            # Share the same camera so views stay in sync
+            # Share the same camera so views stay in sync across all 6 orthographic views
             self._overlay_renderer.SetActiveCamera(
                 self.plotter.renderer.GetActiveCamera()
             )
+            
+            # Sync viewport with main renderer so overlay covers the same area
+            self._sync_overlay_viewport()
             
             logger.debug("_get_overlay_renderer: Overlay renderer created")
         except Exception as e:
@@ -1267,6 +1384,34 @@ class STLViewerWidget(QWidget):
             self._overlay_renderer = None
         
         return self._overlay_renderer
+
+    def _add_mesh_to_overlay(self, mesh, color='black', smooth_shading=False):
+        """Add a mesh directly to the overlay renderer (never to main) so it always renders on top.
+        
+        Bypasses the main renderer entirely to avoid measurement components being hidden behind the 3D object.
+        Returns the vtkActor for tracking.
+        """
+        import vtk
+        overlay = self._get_overlay_renderer()
+        if overlay is None:
+            return None
+        try:
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputData(mesh)
+            mapper.ScalarVisibilityOff()  # Use solid color, not mesh scalars (avoids red-blue gradient)
+            actor = vtk.vtkActor()
+            actor.SetMapper(mapper)
+            rgb = pv.Color(color).float_rgb
+            actor.GetProperty().SetColor(rgb[0], rgb[1], rgb[2])
+            if smooth_shading:
+                actor.GetProperty().SetInterpolationToPhong()
+            actor.GetProperty().LightingOff()
+            actor.GetProperty().SetOpacity(1.0)
+            overlay.AddActor(actor)
+            return actor
+        except Exception as e:
+            logger.warning(f"_add_mesh_to_overlay: Failed: {e}")
+            return None
 
     def _set_actor_always_on_top(self, actor):
         """Move an actor to the overlay renderer so it always renders in front.
@@ -1302,6 +1447,17 @@ class STLViewerWidget(QWidget):
         except Exception as e:
             logger.debug(f"_set_actor_always_on_top: Failed: {e}")
     
+    def _sync_overlay_viewport(self):
+        """Sync overlay renderer viewport with main renderer so measurements render in the correct area."""
+        overlay = getattr(self, '_overlay_renderer', None)
+        if overlay is None or self.plotter is None:
+            return
+        try:
+            vp = self.plotter.renderer.GetViewport()
+            overlay.SetViewport(vp[0], vp[1], vp[2], vp[3])
+        except Exception as e:
+            logger.debug(f"_sync_overlay_viewport: {e}")
+    
     # ========== Orthographic View Methods for Ruler Mode ==========
     
     def view_front_ortho(self):
@@ -1311,6 +1467,7 @@ class STLViewerWidget(QWidget):
         try:
             self.plotter.view_yz()
             self.plotter.enable_parallel_projection()
+            self._sync_overlay_viewport()
             logger.info("view_front_ortho: Front orthographic view set")
         except Exception as e:
             logger.warning(f"view_front_ortho: Could not set view: {e}")
@@ -1322,6 +1479,7 @@ class STLViewerWidget(QWidget):
         try:
             self.plotter.view_xz()
             self.plotter.enable_parallel_projection()
+            self._sync_overlay_viewport()
             logger.info("view_right_ortho: Right orthographic view set")
         except Exception as e:
             logger.warning(f"view_right_ortho: Could not set view: {e}")
@@ -1334,6 +1492,7 @@ class STLViewerWidget(QWidget):
             # Left view: looking down the -Y axis
             self.plotter.view_xz(negative=True)
             self.plotter.enable_parallel_projection()
+            self._sync_overlay_viewport()
             logger.info("view_left_ortho: Left orthographic view set")
         except Exception as e:
             logger.warning(f"view_left_ortho: Could not set view: {e}")
@@ -1345,6 +1504,7 @@ class STLViewerWidget(QWidget):
         try:
             self.plotter.view_xy()
             self.plotter.enable_parallel_projection()
+            self._sync_overlay_viewport()
             logger.info("view_top_ortho: Top orthographic view set")
         except Exception as e:
             logger.warning(f"view_top_ortho: Could not set view: {e}")
@@ -1357,6 +1517,7 @@ class STLViewerWidget(QWidget):
             # Bottom view: looking down the -Z axis
             self.plotter.view_xy(negative=True)
             self.plotter.enable_parallel_projection()
+            self._sync_overlay_viewport()
             logger.info("view_bottom_ortho: Bottom orthographic view set")
         except Exception as e:
             logger.warning(f"view_bottom_ortho: Could not set view: {e}")
@@ -1369,6 +1530,7 @@ class STLViewerWidget(QWidget):
             # Rear view: looking down the -X axis
             self.plotter.view_yz(negative=True)
             self.plotter.enable_parallel_projection()
+            self._sync_overlay_viewport()
             logger.info("view_rear_ortho: Rear orthographic view set")
         except Exception as e:
             logger.warning(f"view_rear_ortho: Could not set view: {e}")
