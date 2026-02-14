@@ -23,11 +23,12 @@ class ImageThumbnail(QFrame):
     def __init__(self, image_path: str, parent=None):
         super().__init__(parent)
         self.image_path = image_path
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMinimumSize(100, 100)
         self.init_ui()
     
     def init_ui(self):
         """Initialize the thumbnail UI."""
-        self.setFixedSize(80, 80)
         self.setStyleSheet(f"""
             QFrame {{
                 background-color: {default_theme.card_background};
@@ -37,49 +38,39 @@ class ImageThumbnail(QFrame):
         """)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(0)
         
-        # Image container
-        img_container = QWidget()
-        img_layout = QVBoxLayout(img_container)
-        img_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Image label
+        # Image label - expands to fill
         self.img_label = QLabel()
-        self.img_label.setFixedSize(70, 60)
         self.img_label.setAlignment(Qt.AlignCenter)
+        self.img_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.img_label.setStyleSheet("border: none;")
+        self.img_label.setScaledContents(False)
         
-        # Load and scale image
+        # Load image
+        self._pixmap = None
         if os.path.exists(self.image_path):
-            pixmap = QPixmap(self.image_path)
-            if not pixmap.isNull():
-                scaled = pixmap.scaled(
-                    70, 60,
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation
-                )
-                self.img_label.setPixmap(scaled)
-            else:
+            self._pixmap = QPixmap(self.image_path)
+            if self._pixmap.isNull():
+                self._pixmap = None
                 self.img_label.setText("❌")
         else:
             self.img_label.setText("❌")
         
-        img_layout.addWidget(self.img_label)
-        layout.addWidget(img_container)
+        layout.addWidget(self.img_label)
         
         # Remove button
         remove_btn = QPushButton("✕")
-        remove_btn.setFixedSize(16, 16)
+        remove_btn.setFixedSize(20, 20)
         remove_btn.setCursor(Qt.PointingHandCursor)
         remove_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: #FEE2E2;
                 border: none;
-                border-radius: 8px;
+                border-radius: 10px;
                 color: #DC2626;
-                font-size: 10px;
+                font-size: 11px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -89,9 +80,22 @@ class ImageThumbnail(QFrame):
         remove_btn.clicked.connect(lambda: self.remove_requested.emit(self.image_path))
         
         # Position remove button at top-right
-        remove_btn.move(62, 2)
         remove_btn.setParent(self)
         remove_btn.raise_()
+        self._remove_btn = remove_btn
+    
+    def resizeEvent(self, event):
+        """Rescale image on resize."""
+        super().resizeEvent(event)
+        if self._pixmap:
+            scaled = self._pixmap.scaled(
+                self.img_label.size(),
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            self.img_label.setPixmap(scaled)
+        # Reposition remove button
+        self._remove_btn.move(self.width() - 24, 4)
 
 
 class AnnotationPopup(QDialog):
@@ -111,8 +115,9 @@ class AnnotationPopup(QDialog):
         
         self.setWindowTitle(f"Annotation Point {annotation_id}")
         self.setModal(False)  # Non-modal so user can still interact with 3D view
-        self.setMinimumSize(320, 350)
-        self.setMaximumSize(400, 500)
+        self.setMinimumSize(500, 550)
+        self.setMaximumSize(700, 800)
+        self.resize(550, 600)
         
         self.init_ui()
     
@@ -207,18 +212,18 @@ class AnnotationPopup(QDialog):
         
         # Photo thumbnails container
         self.photos_scroll = QScrollArea()
-        self.photos_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.photos_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.photos_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.photos_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.photos_scroll.setWidgetResizable(True)
-        self.photos_scroll.setFixedHeight(100)
+        self.photos_scroll.setMinimumHeight(200)
         self.photos_scroll.setFrameShape(QFrame.NoFrame)
         self.photos_scroll.setStyleSheet("background: transparent;")
+        self.photos_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
         self.photos_container = QWidget()
-        self.photos_layout = QHBoxLayout(self.photos_container)
+        self.photos_layout = QVBoxLayout(self.photos_container)
         self.photos_layout.setContentsMargins(0, 0, 0, 0)
         self.photos_layout.setSpacing(8)
-        self.photos_layout.setAlignment(Qt.AlignLeft)
         
         self.photos_scroll.setWidget(self.photos_container)
         main_layout.addWidget(self.photos_scroll)
@@ -304,9 +309,11 @@ class AnnotationPopup(QDialog):
             if item.widget():
                 item.widget().deleteLater()
         
-        # Add new thumbnails
+        # Add new thumbnails - each fills full width
         for path in self.image_paths:
             thumb = ImageThumbnail(path)
+            thumb.setMinimumHeight(180)
+            thumb.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             thumb.remove_requested.connect(self._remove_photo)
             self.photos_layout.addWidget(thumb)
         
@@ -315,7 +322,10 @@ class AnnotationPopup(QDialog):
             placeholder = QLabel("No photos attached")
             placeholder.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 10px;")
             placeholder.setAlignment(Qt.AlignCenter)
+            placeholder.setMinimumHeight(80)
             self.photos_layout.addWidget(placeholder)
+        
+        self.photos_layout.addStretch()
     
     def _on_done(self):
         """Handle Done button - validate the annotation."""
