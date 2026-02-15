@@ -1716,7 +1716,7 @@ class STLViewerWidget(QWidget):
         except Exception as e:
             logger.error(f"_on_annotation_left_click: Picking failed: {e}", exc_info=True)
     
-    def add_annotation_marker(self, annotation_id: int, point: tuple, color: str = '#62645e') -> object:
+    def add_annotation_marker(self, annotation_id: int, point: tuple, color: str = '#909d92') -> object:
         """Add a visible marker for an annotation point.
         
         Args:

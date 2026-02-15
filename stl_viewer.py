@@ -546,7 +546,7 @@ class STLViewerWindow(QMainWindow):
         
         # Add gray visual marker to the viewer (pending state)
         if hasattr(self.viewer_widget, 'add_annotation_marker'):
-            self.viewer_widget.add_annotation_marker(annotation.id, point, '#62645e')  # Dark grey
+            self.viewer_widget.add_annotation_marker(annotation.id, point, '#909d92')  # Light grey
     
     def _on_annotation_added(self, annotation):
         """Handle annotation added event."""
@@ -836,7 +836,7 @@ class STLViewerWindow(QMainWindow):
                     if reader_mode:
                         color = '#1821b4'  # Blue for reader mode
                     else:
-                        color = '#1821b4' if is_validated else '#62645e'  # Blue if validated, dark grey if pending
+                        color = '#1821b4' if is_validated else '#909d92'  # Blue if validated, light grey if pending
                     
                     if hasattr(self.viewer_widget, 'add_annotation_marker'):
                         self.viewer_widget.add_annotation_marker(ann_id, point, color)
