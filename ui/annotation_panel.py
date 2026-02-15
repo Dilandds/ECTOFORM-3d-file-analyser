@@ -24,25 +24,58 @@ READER_UNREAD_COLOR = '#36cd2e'  # Green - unread in reader mode
 READER_READ_COLOR = '#1821b4'    # Blue - read in reader mode
 
 
-def _rounded_text_pixmap(text: str, size: int = 28) -> QPixmap:
-    """Create a rounded circle with text inside (light blue transparent fill, black border)."""
+def _is_dark_color(hex_color: str) -> bool:
+    """Return True if color is dark (use white text for contrast)."""
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) != 6:
+        return False
+    r = int(hex_color[0:2], 16) / 255.0
+    g = int(hex_color[2:4], 16) / 255.0
+    b = int(hex_color[4:6], 16) / 255.0
+    luminance = 0.299 * r + 0.587 * g + 0.114 * b
+    return luminance < 0.5
+
+
+def _checkmark_pixmap(size: int = 12, color: str = "#64748B") -> QPixmap:
+    """Draw a crisp checkmark (avoids poor Unicode rendering on Windows at small sizes)."""
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform)
+    pen = QPen(QColor(color), max(1, size // 5))
+    pen.setCapStyle(Qt.RoundCap)
+    pen.setJoinStyle(Qt.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.NoBrush)
+    # Checkmark: two lines - bottom-left to center, center to top-right
+    margin = 2
+    painter.drawLine(margin, int(size * 0.55), int(size * 0.35), size - margin)
+    painter.drawLine(int(size * 0.35), size - margin, size - margin, margin)
+    painter.end()
+    return pixmap
+
+
+def _rounded_text_pixmap(text: str, size: int = 28, fill_color: str = "#DBEAFE") -> QPixmap:
+    """Create a rounded circle with text inside. fill_color matches the annotation dot color."""
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
     painter.setRenderHint(QPainter.TextAntialiasing)
-    # Light blue transparent fill, black outline
-    painter.setBrush(QBrush(QColor("#DBEAFE")))
-    painter.setPen(QPen(QColor("#000000"), 2))
+    fill = QColor(fill_color)
+    painter.setBrush(QBrush(fill))
+    painter.setPen(QPen(fill.darker(120), 2))
     margin = 2
     painter.drawEllipse(margin, margin, size - 2 * margin, size - 2 * margin)
-    # Bold text centered
+    # Bold text centered - white on dark, black on light
     font = QFont()
     font.setBold(True)
     n = len(str(text))
     font.setPointSize(8 if n > 10 else (9 if n > 3 else 10))
     painter.setFont(font)
-    painter.setPen(QColor("#000000"))
+    text_color = QColor("#FFFFFF") if _is_dark_color(fill_color) else QColor("#000000")
+    painter.setPen(text_color)
     painter.drawText(0, 0, size, size, Qt.AlignCenter, str(text))
     painter.end()
     return pixmap
@@ -55,6 +88,13 @@ def _format_annotation_date(dt: datetime, include_time: bool = True) -> str:
     if include_time:
         return f"{dt.month}/{dt.day}/{dt.year} {dt.hour}:{dt.minute:02d}"
     return f"{dt.month}/{dt.day}/{dt.year}"
+
+
+def _format_annotation_time(dt: datetime) -> str:
+    """Format time for display (e.g., '14:32')."""
+    if not hasattr(dt, 'hour'):
+        return ""
+    return f"{dt.hour}:{dt.minute:02d}"
 
 
 @dataclass
@@ -148,9 +188,9 @@ class AnnotationCard(QFrame):
         self.point_indicator.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.point_indicator)
         
-        # Rounded number badge (display number: 1, 2, 3...)
+        # Rounded number badge (display number: 1, 2, 3...) - color matches dot
         self.date_icon = QLabel()
-        self.date_icon.setPixmap(_rounded_text_pixmap(str(self._display_number)))
+        self.date_icon.setPixmap(_rounded_text_pixmap(str(self._display_number), fill_color=self._get_indicator_color()))
         self.date_icon.setFixedSize(28, 28)
         self.date_icon.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.date_icon)
@@ -177,23 +217,39 @@ class AnnotationCard(QFrame):
         self.label_edit.setFixedHeight(24)
         self.label_edit.editingFinished.connect(self._on_label_editing_finished)
         
-        # Status label below the editable label
+        # Status row: checkmark icon (drawn, not Unicode) + text (avoids poor rendering on Windows)
+        status_row = QWidget()
+        status_row.setStyleSheet("background-color: transparent;")
+        status_layout = QHBoxLayout(status_row)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(4)
+        self.status_icon = QLabel()
+        self.status_icon.setFixedSize(14, 14)
+        self.status_icon.setStyleSheet("background-color: transparent;")
+        status_layout.addWidget(self.status_icon)
         self.status_label = QLabel()
-        self.status_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 9px; background-color: transparent;")
+        self.status_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 10px; background-color: transparent;")
+        status_layout.addWidget(self.status_label, 1)
         
         info_layout = QVBoxLayout()
         info_layout.setContentsMargins(0, 0, 0, 0)
         info_layout.setSpacing(2)
         info_layout.addWidget(self.label_edit)
-        info_layout.addWidget(self.status_label)
+        info_layout.addWidget(status_row)
         
         layout.addLayout(info_layout, 1)  # stretch
         layout.addStretch()
         
-        # Date (small text) - where coordinates were shown
-        date_text = _format_annotation_date(self.annotation.created_at, include_time=False) if self.annotation.created_at else str(self.annotation.id)
-        self.coord_label = QLabel(date_text)
-        self.coord_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 9px; background-color: transparent;")
+        # Date and time (date on first line, time on second)
+        if self.annotation.created_at:
+            date_text = _format_annotation_date(self.annotation.created_at, include_time=False)
+            time_text = _format_annotation_time(self.annotation.created_at)
+            date_time_text = f"{date_text}\n{time_text}"
+        else:
+            date_time_text = str(self.annotation.id)
+        self.coord_label = QLabel(date_time_text)
+        self.coord_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.coord_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 13px; background-color: transparent;")
         layout.addWidget(self.coord_label)
         
         # Delete button (cross)
@@ -206,6 +262,7 @@ class AnnotationCard(QFrame):
                 background-color: transparent;
                 border: none;
                 font-size: 13px;
+                font-weight: bold;
                 color: {default_theme.text_secondary};
             }}
             QPushButton:hover {{
@@ -249,35 +306,51 @@ class AnnotationCard(QFrame):
         self.hover_changed.emit(self.annotation.id, False)
         super().leaveEvent(event)
     
+    def _get_indicator_color(self) -> str:
+        """Return the dot/badge color based on annotation state."""
+        if self._reader_mode:
+            return READER_READ_COLOR if self.annotation.is_read else READER_UNREAD_COLOR
+        if self.annotation.is_validated:
+            return VALIDATED_COLOR
+        return PENDING_COLOR
+    
     def _update_style(self):
         """Update the card style based on validation status and reader mode."""
+        indicator_color = self._get_indicator_color()
+        status_color = default_theme.text_secondary
         if self._reader_mode:
             # Reader mode: Green for unread, Blue for read
             if self.annotation.is_read:
-                indicator_color = READER_READ_COLOR
                 bg_color = "#F3F4F6"
                 border_color = "#D1D5DB"
-                self.status_label.setText("✓ Read")
+                self.status_icon.setPixmap(_checkmark_pixmap(12, status_color))
+                self.status_icon.setVisible(True)
+                self.status_label.setText("Read")
             else:
-                indicator_color = READER_UNREAD_COLOR
                 bg_color = "#F0FFF0"
                 border_color = "#86EFAC"
-                self.status_label.setText("● Unread")
+                self.status_icon.setPixmap(QPixmap())  # No icon for unread
+                self.status_icon.setVisible(False)
+                self.status_label.setText("Unread")
         elif self.annotation.is_validated:
-            # Blue for validated
-            indicator_color = VALIDATED_COLOR
+            # Blue for validated - use drawn checkmark (not Unicode) for crisp Windows rendering
             bg_color = "#F3F4F6"
             border_color = "#D1D5DB"
-            self.status_label.setText("✓ Validated")
+            self.status_icon.setPixmap(_checkmark_pixmap(12, status_color))
+            self.status_icon.setVisible(True)
+            self.status_label.setText("Validated")
         else:
             # Gray for pending
-            indicator_color = PENDING_COLOR
             bg_color = "#F9FAFB"
             border_color = "#E5E7EB"
+            self.status_icon.setPixmap(QPixmap())
+            self.status_icon.setVisible(False)
             self.status_label.setText("Click to edit")
         
         _dot_font = 20 if sys.platform == 'win32' else 14
         self.point_indicator.setStyleSheet(f"color: {indicator_color}; font-size: {_dot_font}px; background-color: transparent;")
+        # Number badge follows dot color
+        self.date_icon.setPixmap(_rounded_text_pixmap(str(self._display_number), fill_color=indicator_color))
         self.setStyleSheet(f"""
             QFrame#annotationCard {{
                 background-color: {bg_color};
@@ -300,8 +373,12 @@ class AnnotationCard(QFrame):
         self.annotation = annotation
         if display_number is not None:
             self._display_number = display_number
-        self.date_icon.setPixmap(_rounded_text_pixmap(str(self._display_number)))
-        self.coord_label.setText(_format_annotation_date(annotation.created_at, include_time=False) if annotation.created_at else str(self._display_number))
+        if annotation.created_at:
+            date_text = _format_annotation_date(annotation.created_at, include_time=False)
+            time_text = _format_annotation_time(annotation.created_at)
+            self.coord_label.setText(f"{date_text}\n{time_text}")
+        else:
+            self.coord_label.setText(str(self._display_number))
         self.label_edit.blockSignals(True)
         self.label_edit.setText(annotation.label)
         self.label_edit.blockSignals(False)
@@ -363,12 +440,12 @@ class AnnotationPanel(QWidget):
         
         # Header
         header = QFrame()
-        header.setStyleSheet(f"""
-            QFrame {{
-                background-color: {default_theme.card_background};
-                border: 1px solid {default_theme.border_standard};
+        header.setStyleSheet("""
+            QFrame {
+                background-color: #FFC90E;
+                border: 1px solid #E5B80A;
                 border-radius: 8px;
-            }}
+            }
         """)
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(12, 10, 12, 10)
@@ -515,16 +592,17 @@ class AnnotationPanel(QWidget):
             self.instructions_label.hide()
             # Hide clear button
             self.clear_btn.hide()
-            # Update card styling
-        for card in self.annotation_cards.values():
-                card._reader_mode = True
-                card._update_style()
         else:
             # Show instructions, hide banner
             self.reader_mode_banner.hide()
             self.instructions_label.show()
             # Show clear button
             self.clear_btn.show()
+        
+        # Update all cards: badge and dot must follow color in both reader and editor modes
+        for card in self.annotation_cards.values():
+            card._reader_mode = enabled
+            card._update_style()
     
     def is_reader_mode(self) -> bool:
         """Check if panel is in reader mode."""
@@ -563,8 +641,13 @@ class AnnotationPanel(QWidget):
         
         return annotation
     
-    def remove_annotation(self, annotation_id: int):
-        """Remove an annotation by ID and renumber remaining (1, 2, 3...)."""
+    def remove_annotation(self, annotation_id: int, skip_emit: bool = False):
+        """Remove an annotation by ID and renumber remaining (1, 2, 3...).
+        
+        Args:
+            annotation_id: ID of annotation to remove
+            skip_emit: If True, do not emit annotation_deleted (used during bulk clear)
+        """
         # Find and remove from list
         self.annotations = [a for a in self.annotations if a.id != annotation_id]
         
@@ -582,13 +665,14 @@ class AnnotationPanel(QWidget):
         # Renumber remaining cards (1, 2, 3...)
         self._refresh_display_numbers()
         
-        self.annotation_deleted.emit(annotation_id)
+        if not skip_emit:
+            self.annotation_deleted.emit(annotation_id)
         logger.info(f"Annotation removed: id={annotation_id}, renumbered to {[i+1 for i in range(len(self.annotations))]}")
     
     def clear_all(self):
         """Remove all annotations."""
         for annotation_id in list(self.annotation_cards.keys()):
-            self.remove_annotation(annotation_id)
+            self.remove_annotation(annotation_id, skip_emit=True)
         self._next_id = 1
     
     def get_annotations(self) -> List[Annotation]:

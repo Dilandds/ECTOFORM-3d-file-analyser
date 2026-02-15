@@ -120,6 +120,10 @@ class AnnotationPopup(QDialog):
         self.setWindowTitle(f"Annotation {label} {self._display_number}")
         self.setModal(False)  # Non-modal so user can still interact with 3D view
         self.setMinimumSize(500, 550)
+        from ui.annotation_icon import get_app_window_icon
+        icon = get_app_window_icon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
         self.setMaximumSize(700, 800)
         self.resize(550, 600)
         

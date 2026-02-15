@@ -63,8 +63,12 @@ class STLViewerWindow(QMainWindow):
         
         logger.info("init_ui: Setting window title and size...")
         self.setWindowTitle("ECTOFORM")
-        self.setMinimumSize(1200, 800)
-        self.resize(1200, 800)
+        self.setMinimumSize(1400, 900)
+        from ui.annotation_icon import get_app_window_icon
+        icon = get_app_window_icon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
+        self.resize(1400, 900)
         
         # Center window on screen
         screen = QApplication.primaryScreen().geometry()
@@ -388,6 +392,7 @@ class STLViewerWindow(QMainWindow):
                     # Shaded: silvery metallic look, no wires, shiny silver grey and black
                     prop.SetRepresentationToSurface()
                     prop.EdgeVisibilityOff()  # No wireframe edges
+                    prop.SetInterpolationToGouraud()  # Smooth shading across faces
                     prop.SetColor(0.72, 0.72, 0.76)  # Silver grey
                     prop.SetAmbient(0.25)   # Darker ambient for pronounced shadows
                     prop.SetDiffuse(0.55)   # Moderate diffuse
@@ -396,6 +401,7 @@ class STLViewerWindow(QMainWindow):
                 else:  # solid - unchanged from default
                     prop.SetRepresentationToSurface()
                     prop.EdgeVisibilityOff()
+                    prop.SetInterpolationToGouraud()  # Smooth shading across faces
                     prop.SetColor(0.68, 0.85, 0.90)  # Restore lightblue
                     prop.SetAmbient(0.7)
                     prop.SetDiffuse(0.4)
@@ -577,8 +583,21 @@ class STLViewerWindow(QMainWindow):
         self._update_sidebar_annotation_count()
     
     def _on_annotation_deleted(self, annotation_id: int):
-        """Handle annotation deleted event - refresh all 3D markers with renumbered labels (1, 2, 3...)."""
-        self._refresh_annotation_markers()
+        """Handle annotation deleted - remove only the deleted marker and renumber affected labels."""
+        if hasattr(self.viewer_widget, 'remove_annotation_marker'):
+            self.viewer_widget.remove_annotation_marker(annotation_id)
+        annotations = self.annotation_panel.get_annotations()
+        if annotations and hasattr(self.viewer_widget, 'update_annotation_labels_from_list'):
+            reader_mode = self.annotation_panel.is_reader_mode()
+            annotations_with_display = []
+            for i, ann in enumerate(annotations):
+                display_number = i + 1
+                if reader_mode:
+                    color = '#1821b4' if ann.is_read else '#36cd2e'
+                else:
+                    color = '#1821b4' if ann.is_validated else '#909d92'
+                annotations_with_display.append((ann.id, display_number, color))
+            self.viewer_widget.update_annotation_labels_from_list(annotations_with_display)
         logger.info(f"_on_annotation_deleted: Annotation {annotation_id} removed, markers renumbered")
         self._update_sidebar_annotation_count()
     

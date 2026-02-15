@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QIcon
 from PyQt5.QtWidgets import QApplication
 
 
@@ -20,6 +20,20 @@ _ICON_PATH = str(_get_assets_base() / 'assets' / 'annotation_icon.png')
 def get_annotation_icon_path():
     """Return the path to the annotation icon, or None if not found."""
     return _ICON_PATH if os.path.exists(_ICON_PATH) else None
+
+
+def get_app_window_icon():
+    """Return a QIcon for application/dialog title bars (removes Windows '?' placeholder).
+    Tries icon.ico (Windows), annotation_icon.png, logo.png in that order."""
+    base = _get_assets_base()
+    assets = base / 'assets'
+    for name in ('icon.ico', 'annotation_icon.png', 'logo.png', 'splash.png'):
+        path = assets / name
+        if path.exists():
+            icon = QIcon(str(path))
+            if not icon.isNull():
+                return icon
+    return QIcon()  # Empty icon - better than nothing
 
 
 def get_annotation_icon_pixmap(size: int = 24, path: str = None):

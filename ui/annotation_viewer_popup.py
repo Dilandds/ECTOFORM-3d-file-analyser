@@ -26,6 +26,10 @@ class ImageViewerDialog(QDialog):
         self.setWindowTitle("View Image")
         self.setModal(True)
         self.setMinimumSize(600, 500)
+        from ui.annotation_icon import get_app_window_icon
+        icon = get_app_window_icon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
         self.init_ui()
     
     def init_ui(self):
@@ -296,6 +300,10 @@ class AnnotationViewerPopup(QDialog):
         self.setWindowTitle(f"View Annotation {label} {self._display_number}")
         self.setModal(False)
         self.setMinimumSize(320, 300)
+        from ui.annotation_icon import get_app_window_icon
+        icon = get_app_window_icon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
         self.setMaximumSize(400, 450)
         
         self.init_ui()

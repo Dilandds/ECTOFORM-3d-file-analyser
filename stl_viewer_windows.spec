@@ -25,13 +25,14 @@ datas = [
     ('core', 'core'),
 ]
 
-# Add splash screen images if they exist
+# Add splash screen and icon assets if they exist
 splash_image_paths = [
     ('assets/splash.png', 'assets'),
     ('assets/splash.jpg', 'assets'),
     ('assets/logo.png', 'assets'),
     ('assets/logo.jpg', 'assets'),
     ('assets/annotation_icon.png', 'assets'),
+    ('assets/icon.ico', 'assets'),
 ]
 
 for src_path, dst_path in splash_image_paths:

@@ -46,6 +46,10 @@ class LicenseDialog(QDialog):
         self.setMinimumWidth(500)
         self.setMinimumHeight(250)
         self.setModal(True)
+        from ui.annotation_icon import get_app_window_icon
+        icon = get_app_window_icon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
         
         # Apply styling to match application theme
         from ui.styles import default_theme

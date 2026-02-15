@@ -2,7 +2,6 @@
 Drag & Drop Overlay for the 3D Viewer.
 Appears when no STL model is loaded.
 """
-import os
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QPainter, QColor, QPen
@@ -18,10 +17,8 @@ class DropZoneOverlay(QWidget):
     file_dropped = pyqtSignal(str)
     # Signal emitted when user clicks to upload
     click_to_upload = pyqtSignal()
-    # Signal emitted when an error occurs (invalid file, too large, etc.)
+    # Signal emitted when an error occurs (invalid file, etc.)
     error_occurred = pyqtSignal(str)
-    
-    MAX_FILE_SIZE_MB = 50
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -69,7 +66,7 @@ class DropZoneOverlay(QWidget):
         """)
         
         # Helper text
-        self.helper_label = QLabel("STL, STEP, 3DM, OBJ & IGES files · Max 50 MB")
+        self.helper_label = QLabel("STL, STEP, 3DM, OBJ & IGES files")
         self.helper_label.setAlignment(Qt.AlignCenter)
         self.helper_label.setStyleSheet("""
             QLabel {
@@ -147,16 +144,6 @@ class DropZoneOverlay(QWidget):
                 file_ext = file_path.lower()
                 if not (file_ext.endswith('.stl') or file_ext.endswith('.step') or file_ext.endswith('.stp') or file_ext.endswith('.3dm') or file_ext.endswith('.obj') or file_ext.endswith('.iges') or file_ext.endswith('.igs')):
                     self.error_occurred.emit("Invalid file type. Please use .STL, .STEP, .STP, .3DM, .OBJ, .IGES, or .IGS files only.")
-                    return
-                
-                # Validate file size
-                try:
-                    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-                    if file_size_mb > self.MAX_FILE_SIZE_MB:
-                        self.error_occurred.emit(f"File too large ({file_size_mb:.1f} MB). Maximum size is {self.MAX_FILE_SIZE_MB} MB.")
-                        return
-                except OSError:
-                    self.error_occurred.emit("Could not read file. Please try again.")
                     return
                 
                 event.acceptProposedAction()

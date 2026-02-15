@@ -4,9 +4,10 @@
 import sys
 import os
 import logging
+import numpy as np
 import pyvista as pv
 from pyvistaqt import QtInteractor
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QStackedLayout, QGridLayout
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QStackedLayout, QGridLayout, QFrame
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from ui.drop_zone_overlay import DropZoneOverlay
 
@@ -67,6 +68,21 @@ class STLViewerWidget(QWidget):
         self.drop_overlay.click_to_upload.connect(self._on_click_upload)
         self.drop_overlay.error_occurred.connect(self._on_drop_error)
         self.layout.addWidget(self.drop_overlay)
+        
+        # Object control label overlay (shown above gizmo in annotation mode)
+        self._object_control_overlay = QFrame()
+        self._object_control_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self._object_control_overlay.setStyleSheet("background: transparent;")
+        overlay_layout = QVBoxLayout(self._object_control_overlay)
+        overlay_layout.setContentsMargins(0, 0, 24, 85)  # Right, bottom (above gizmo, no overlap)
+        overlay_layout.setAlignment(Qt.AlignRight | Qt.AlignBottom)
+        self._object_control_label = QLabel("3D control")
+        self._object_control_label.setStyleSheet(
+            "color: #000000; font-size: 10px; font-weight: 500; background: transparent;"
+        )
+        overlay_layout.addWidget(self._object_control_label, 0, Qt.AlignRight)
+        self._object_control_overlay.hide()
+        self.layout.addWidget(self._object_control_overlay)
         
         # Show overlay on top initially
         self.layout.setCurrentWidget(self.drop_overlay)
@@ -173,10 +189,12 @@ class STLViewerWidget(QWidget):
             safe_flush(sys.stderr)
             
             # Configure plotter for smooth interaction with large models
+            # Windows: FXAA for reliable edge smoothing; Mac/Linux: SSAA for best quality
             try:
-                self.plotter.enable_anti_aliasing()
-                debug_print("STLViewerWidget: Anti-aliasing enabled")
-                logger.info("STLViewerWidget: Anti-aliasing enabled")
+                aa_type = 'fxaa' if sys.platform == 'win32' else 'ssaa'
+                self.plotter.enable_anti_aliasing(aa_type)
+                debug_print(f"STLViewerWidget: Anti-aliasing enabled ({aa_type})")
+                logger.info(f"STLViewerWidget: Anti-aliasing enabled ({aa_type})")
             except Exception as e:
                 debug_print(f"STLViewerWidget: Could not enable anti-aliasing: {e}")
                 logger.warning(f"STLViewerWidget: Could not enable anti-aliasing: {e}")
@@ -511,7 +529,7 @@ class STLViewerWidget(QWidget):
                 render_mesh,
                 color='lightblue',
                 show_edges=False,
-                smooth_shading=False,
+                smooth_shading=True,  # Gouraud/Phong interpolation for smoother curved surfaces
                 ambient=0.7,  # Increased for less shadowing
                 diffuse=0.4,  # Reduced to balance with higher ambient
                 specular=0.2,  # Reduced for less harsh highlights
@@ -588,8 +606,10 @@ class STLViewerWidget(QWidget):
         
         try:
             # Re-enable anti-aliasing for sharpness
-            self.plotter.enable_anti_aliasing()
-            logger.info("_restore_renderer_settings: Anti-aliasing restored")
+            # Windows: FXAA for reliable edge smoothing; Mac/Linux: SSAA for best quality
+            aa_type = 'fxaa' if sys.platform == 'win32' else 'ssaa'
+            self.plotter.enable_anti_aliasing(aa_type)
+            logger.info(f"_restore_renderer_settings: Anti-aliasing restored ({aa_type})")
         except Exception as e:
             logger.warning(f"_restore_renderer_settings: Could not restore anti-aliasing: {e}")
         
@@ -1622,6 +1642,9 @@ class STLViewerWidget(QWidget):
             # Add interactive orientation cube in bottom right for rotating when zoomed in
             # (clicking on model adds annotations, so use this to rotate view instead)
             self._add_orientation_gizmo()
+            if self._object_control_overlay is not None:
+                self._object_control_overlay.show()
+                self._object_control_overlay.raise_()
             logger.info("enable_annotation_mode: Annotation mode enabled")
             return True
         
@@ -1647,6 +1670,8 @@ class STLViewerWidget(QWidget):
             pass
         
         self._remove_orientation_gizmo()
+        if self._object_control_overlay is not None:
+            self._object_control_overlay.hide()
         # Restore bottom-left XYZ axes
         try:
             self.plotter.show_axes()
@@ -1670,8 +1695,31 @@ class STLViewerWidget(QWidget):
             self._orientation_widget = self.plotter.add_camera_orientation_widget(animate=True)
             # Position in bottom-right (VTK representation)
             rep = self._orientation_widget.GetRepresentation() if hasattr(self._orientation_widget, 'GetRepresentation') else None
-            if rep is not None and hasattr(rep, 'AnchorToLowerRight'):
-                rep.AnchorToLowerRight()
+            if rep is not None:
+                if hasattr(rep, 'AnchorToLowerRight'):
+                    rep.AnchorToLowerRight()
+                # Custom colors: red, bright yellow, medium blue (VTK uses RGB 0-1)
+                try:
+                    if hasattr(rep, 'SetXAxisColor'):
+                        rep.SetXAxisColor(1.0, 0.0, 0.0)  # Red #FF0000
+                    if hasattr(rep, 'SetYAxisColor'):
+                        rep.SetYAxisColor(1.0, 1.0, 0.0)  # Bright yellow #FFFF00
+                    if hasattr(rep, 'SetZAxisColor'):
+                        rep.SetZAxisColor(0.0, 0.0, 0.8)  # Medium blue #0000CD (brighter for visibility)
+                    if hasattr(rep, 'SetAxisColor'):
+                        rep.SetAxisColor(0, 1.0, 0.0, 0.0)  # X = red
+                        rep.SetAxisColor(1, 1.0, 1.0, 0.0)  # Y = yellow
+                        rep.SetAxisColor(2, 0.0, 0.0, 0.8)  # Z = blue
+                    if hasattr(rep, 'BuildRepresentation'):
+                        rep.BuildRepresentation()
+                    if hasattr(rep, 'Modified'):
+                        rep.Modified()
+                except Exception as ce:
+                    logger.debug(f"_add_orientation_gizmo: Color customization: {ce}")
+                try:
+                    self.plotter.render()
+                except Exception:
+                    pass
             logger.info("_add_orientation_gizmo: Camera orientation widget added")
         except Exception as e:
             logger.warning(f"_add_orientation_gizmo: Could not add: {e}")
@@ -1706,8 +1754,8 @@ class STLViewerWidget(QWidget):
         # Create picker
         self._annotation_picker = vtk.vtkCellPicker()
         try:
-            # Larger tolerance helps on high-DPI and when clicking plain/flat surfaces
-            self._annotation_picker.SetTolerance(0.05)
+            # Smaller tolerance = must click directly on model (reduces accidental picks in empty space)
+            self._annotation_picker.SetTolerance(0.01)
         except Exception:
             pass
         
@@ -1827,6 +1875,21 @@ class STLViewerWidget(QWidget):
                     point_tuple[2] < bounds[4] - margin or point_tuple[2] > bounds[5] + margin):
                     logger.info(f"_on_annotation_left_click: Point {point_tuple} outside mesh bounds, ignored")
                     return
+                
+                # Validate: point must be ON the mesh surface (reject picks in empty space)
+                # Use distance from picked point to closest mesh point - must be within model
+                try:
+                    closest_idx = self.current_mesh.find_closest_point(point_tuple)
+                    closest_pt = self.current_mesh.points[closest_idx]
+                    dist = np.linalg.norm(np.array(point_tuple) - np.array(closest_pt))
+                    # Reject if point is far from mesh (clearly in empty space)
+                    # 10% of model size - on-surface picks are typically much closer to a vertex
+                    surface_tolerance = max(max_dim * 0.10, 1.0)
+                    if dist > surface_tolerance:
+                        logger.info(f"_on_annotation_left_click: Point not on mesh surface (dist={dist:.2f}mm > {surface_tolerance:.2f}mm), ignored")
+                        return
+                except Exception as e:
+                    logger.debug(f"_on_annotation_left_click: Surface validation failed: {e}")
             
             logger.info(f"_on_annotation_left_click: hit at {point_tuple}")
             
@@ -1889,17 +1952,20 @@ class STLViewerWidget(QWidget):
             except Exception:
                 pass
             
-            # Add date label slightly above the sphere so it's visible
+            # Add date label slightly above the sphere - badge color matches dot
             label_actor = None
             try:
                 offset = sphere_radius * 1.5
                 label_pos = (point[0], point[1] + offset, point[2])
                 label_points = pv.PolyData([list(label_pos)])
+                # Text white on dark backgrounds (blue), black on light (grey)
+                text_color = '#FFFFFF' if self._is_dark_hex_color(color) else '#000000'
                 label_actor = self.plotter.add_point_labels(
                     label_points,
                     [display_date],
                     font_size=18,
-                    text_color='black',
+                    text_color=text_color,
+                    shape_color=color,  # Badge background matches dot color
                     font_family='arial',
                     bold=True,
                     show_points=False,
@@ -1922,6 +1988,7 @@ class STLViewerWidget(QWidget):
                 'actor': actor,
                 'label_actor': label_actor,
                 'base_color': color,  # For restoring when deselected
+                'display_date': display_date,
             })
             self.annotation_actors.append(actor)
             if label_actor:
@@ -1936,7 +2003,7 @@ class STLViewerWidget(QWidget):
             return None
     
     def update_annotation_marker_color(self, annotation_id: int, color: str):
-        """Update the color of an annotation marker.
+        """Update the color of an annotation marker and its label badge.
         
         Args:
             annotation_id: The annotation ID
@@ -1951,6 +2018,8 @@ class STLViewerWidget(QWidget):
                         ann['actor'].GetProperty().SetColor(
                             *self._hex_to_rgb_normalized(color)
                         )
+                    # Update label badge to match dot color
+                    self._replace_annotation_label(ann, color)
                     self.plotter.render()
                     logger.info(f"update_annotation_marker_color: Updated id={annotation_id} to {color}")
                 except Exception as e:
@@ -1968,6 +2037,7 @@ class STLViewerWidget(QWidget):
                         ann['actor'].GetProperty().SetColor(
                             *self._hex_to_rgb_normalized(ann.get('base_color', '#909d92'))
                         )
+                        self._replace_annotation_label(ann, ann.get('base_color', '#909d92'))
                     except Exception:
                         pass
         for ann in self.annotations:
@@ -1978,6 +2048,7 @@ class STLViewerWidget(QWidget):
                     ann['actor'].GetProperty().SetColor(
                         *self._hex_to_rgb_normalized(color)
                     )
+                    self._replace_annotation_label(ann, color)
                     self.plotter.render()
                 except Exception as e:
                     logger.warning(f"set_annotation_selected: Failed: {e}")
@@ -2015,6 +2086,33 @@ class STLViewerWidget(QWidget):
                 logger.info(f"remove_annotation_marker: Removed id={annotation_id}")
                 break
     
+    def update_annotation_labels_from_list(self, annotations_with_display):
+        """Update only labels whose display number changed (incremental renumber after delete).
+        
+        Args:
+            annotations_with_display: List of (annotation_id, display_number, color) tuples.
+        """
+        if self.plotter is None:
+            return
+        updated = 0
+        lookup = {aid: (dnum, color) for aid, dnum, color in annotations_with_display}
+        for ann in self.annotations:
+            aid = ann['id']
+            if aid not in lookup:
+                continue
+            display_number, color = lookup[aid]
+            new_display = str(display_number)
+            if ann.get('display_date') != new_display:
+                ann['display_date'] = new_display
+                self._replace_annotation_label(ann, color)
+                updated += 1
+        if updated > 0:
+            try:
+                self.plotter.render()
+            except Exception:
+                pass
+        logger.debug(f"update_annotation_labels_from_list: Updated {updated} labels")
+    
     def clear_all_annotation_markers(self):
         """Remove all annotation markers and their date labels."""
         if self.plotter is None:
@@ -2043,10 +2141,7 @@ class STLViewerWidget(QWidget):
         self.annotations = []
         self.annotation_actors = []
         
-        # If in annotation mode, hide the orientation gizmo when clearing
-        if getattr(self, 'annotation_mode', False):
-            self._remove_orientation_gizmo()
-        
+        # Keep gizmo visible - user is still in annotation mode and may add more
         try:
             self.plotter.render()
         except Exception:
@@ -2069,6 +2164,60 @@ class STLViewerWidget(QWidget):
                     logger.warning(f"focus_on_annotation: Failed: {e}")
                 break
     
+    def _replace_annotation_label(self, ann: dict, color: str):
+        """Replace the annotation label with one using the given badge color."""
+        label_actor = ann.get('label_actor')
+        display_date = ann.get('display_date', str(ann['id']))
+        point = ann['point']
+        if label_actor is None:
+            return
+        try:
+            # Remove old label
+            self.plotter.remove_actor(label_actor)
+            if label_actor in self.annotation_actors:
+                self.annotation_actors.remove(label_actor)
+            overlay = getattr(self, '_overlay_renderer', None)
+            if overlay is not None:
+                try:
+                    overlay.RemoveActor(label_actor)
+                except Exception:
+                    pass
+            # Compute sphere radius for offset (same as add_annotation_marker)
+            try:
+                bounds = self.current_mesh.bounds
+                dim_x = bounds[1] - bounds[0]
+                dim_y = bounds[3] - bounds[2]
+                dim_z = bounds[5] - bounds[4]
+                max_dim = max(dim_x, dim_y, dim_z)
+                sphere_radius = max_dim * 0.012
+            except Exception:
+                sphere_radius = 0.5
+            offset = sphere_radius * 1.5
+            label_pos = (point[0], point[1] + offset, point[2])
+            label_points = pv.PolyData([list(label_pos)])
+            text_color = '#FFFFFF' if self._is_dark_hex_color(color) else '#000000'
+            new_label = self.plotter.add_point_labels(
+                label_points,
+                [display_date],
+                font_size=18,
+                text_color=text_color,
+                shape_color=color,
+                font_family='arial',
+                bold=True,
+                show_points=False,
+                always_visible=True,
+                name=f"annotation_label_{ann['id']}",
+                reset_camera=False
+            )
+            if new_label:
+                new_label.SetPickable(False)
+                self._set_actor_always_on_top(new_label)
+            ann['label_actor'] = new_label
+            if new_label and new_label not in self.annotation_actors:
+                self.annotation_actors.append(new_label)
+        except Exception as e:
+            logger.debug(f"_replace_annotation_label: {e}")
+    
     def _hex_to_rgb_normalized(self, hex_color: str) -> tuple:
         """Convert hex color to normalized RGB tuple."""
         hex_color = hex_color.lstrip('#')
@@ -2076,3 +2225,14 @@ class STLViewerWidget(QWidget):
         g = int(hex_color[2:4], 16) / 255.0
         b = int(hex_color[4:6], 16) / 255.0
         return (r, g, b)
+    
+    def _is_dark_hex_color(self, hex_color: str) -> bool:
+        """Return True if color is dark (use white text for contrast)."""
+        hex_color = hex_color.lstrip('#')
+        if len(hex_color) != 6:
+            return False
+        r = int(hex_color[0:2], 16) / 255.0
+        g = int(hex_color[2:4], 16) / 255.0
+        b = int(hex_color[4:6], 16) / 255.0
+        luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        return luminance < 0.5

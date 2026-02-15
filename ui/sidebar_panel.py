@@ -57,6 +57,9 @@ class SidebarPanel(QWidget):
         ("Sapphire / Ruby", 4.0),
         ("Emerald", 2.75),
         ("Quartz", 2.65),
+        ("Lapis lazuli", 2.75),
+        ("Crystal glass", 3.0),
+        ("Aventurine glass", 2.65),
     ]
     
     def __init__(self, parent=None):

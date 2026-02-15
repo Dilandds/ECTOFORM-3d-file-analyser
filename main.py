@@ -65,6 +65,12 @@ def main():
     logger.info("=" * 50)
     
     try:
+        # Request multi-sampling for OpenGL on Windows (improves 3D rendering quality)
+        if sys.platform == 'win32':
+            from PyQt5.QtGui import QSurfaceFormat
+            fmt = QSurfaceFormat()
+            fmt.setSamples(8)  # Request 8x MSAA for the OpenGL context
+            QSurfaceFormat.setDefaultFormat(fmt)
         print("Step 1: Creating QApplication...", file=sys.stderr)
         safe_flush(sys.stderr)
         logger.info("Step 1: Creating QApplication...")
@@ -72,6 +78,12 @@ def main():
         print("✓ QApplication created successfully", file=sys.stderr)
         safe_flush(sys.stderr)
         logger.info("✓ QApplication created successfully")
+        
+        # Set app icon for all windows (removes Windows '?' placeholder in title bars)
+        from ui.annotation_icon import get_app_window_icon
+        app_icon = get_app_window_icon()
+        if not app_icon.isNull():
+            app.setWindowIcon(app_icon)
         
         # Apply global stylesheet early to ensure QMessageBox dialogs are styled
         app.setStyleSheet(get_global_stylesheet())
