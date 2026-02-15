@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import tempfile
+import uuid
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -70,7 +71,7 @@ class EctoFormat:
     
     @staticmethod
     def export(mesh, annotations: List[dict], output_path: str, 
-               source_format: str = 'stl', original_filename: str = None) -> Tuple[bool, str]:
+               source_format: str = 'stl', original_filename: str = None) -> Tuple[bool, str, Optional[str]]:
         """Create an .ecto bundle containing the model, annotations, and images.
         
         Args:
@@ -81,10 +82,12 @@ class EctoFormat:
             original_filename: Original filename for metadata
             
         Returns:
-            tuple: (success: bool, message: str)
+            tuple: (success: bool, message_or_path: str, creator_token: str|None)
         """
         if mesh is None:
-            return False, "No mesh provided"
+            return False, "No mesh provided", None
+        
+        creator_token = str(uuid.uuid4())
         
         # Ensure output has .ecto extension
         if not output_path.lower().endswith('.ecto'):
@@ -155,7 +158,7 @@ class EctoFormat:
                 json.dump(annotations_data, f, indent=2, ensure_ascii=False)
             logger.info(f"export: Created annotations.json with {len(processed_annotations)} annotations")
             
-            # 4. Create manifest.json
+            # 4. Create manifest.json (creator_token identifies sender for reopen-as-editor)
             manifest = {
                 'format_version': ECTO_FORMAT_VERSION,
                 'created_by': 'ECTOFORM',
@@ -164,6 +167,7 @@ class EctoFormat:
                 'model_format': source_format,
                 'original_filename': original_filename or 'unknown',
                 'reader_mode': True,
+                'creator_token': creator_token,
                 'annotation_count': len(processed_annotations),
                 'has_images': has_images
             }
@@ -187,11 +191,11 @@ class EctoFormat:
                         zf.write(img_path, f'images/{img_file}')
             
             logger.info(f"export: Created .ecto bundle at {output_path}")
-            return True, output_path
+            return True, output_path, creator_token
             
         except Exception as e:
             logger.error(f"export: Failed to create .ecto bundle: {e}", exc_info=True)
-            return False, str(e)
+            return False, str(e), None
         
         finally:
             # Cleanup temp directory
@@ -244,9 +248,23 @@ class EctoFormat:
             if not os.path.exists(model_path):
                 return None, None, False, f"Model file not found in bundle: {model_filename}"
             
+            # Sender vs reader: if creator_token is in local registry, this machine created the file
+            creator_token = manifest.get('creator_token')
+            if creator_token:
+                try:
+                    from core.creator_registry import is_creator
+                    if is_creator(creator_token):
+                        reader_mode = False  # Sender mode (editor)
+                        logger.info("import_ecto: Creator token matches - opening in sender/editor mode")
+                    else:
+                        reader_mode = True  # Reader mode (view-only)
+                except ImportError:
+                    reader_mode = True
+            else:
+                reader_mode = True  # Old ECTO files: default to reader mode
+            
             # Read annotations
             annotations = None
-            reader_mode = True  # Default to reader mode for imported files
             annotations_path = os.path.join(temp_dir, 'annotations.json')
             
             if os.path.exists(annotations_path):
@@ -254,7 +272,6 @@ class EctoFormat:
                     annotations_data = json.load(f)
                 
                 annotations = annotations_data.get('annotations', [])
-                reader_mode = annotations_data.get('reader_mode', True)
                 
                 # Resolve relative image paths to absolute paths in temp dir
                 for ann in annotations:

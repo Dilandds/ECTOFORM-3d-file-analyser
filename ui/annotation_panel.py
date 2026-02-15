@@ -4,13 +4,14 @@ Workflow: Gray dots (pending) → Click to open popup → Add text/photos → Do
 """
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import List, Optional, Callable
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QScrollArea, QFrame, QTextEdit, QSizePolicy, QGraphicsDropShadowEffect
+    QScrollArea, QFrame, QTextEdit, QLineEdit, QSizePolicy, QGraphicsDropShadowEffect
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtGui import QFont, QColor, QPixmap, QPainter, QBrush, QPen
 from ui.styles import default_theme
 
 logger = logging.getLogger(__name__)
@@ -18,8 +19,41 @@ logger = logging.getLogger(__name__)
 # Colors for annotation states
 PENDING_COLOR = '#909d92'   # Light grey - unvalidated
 VALIDATED_COLOR = '#1821b4'  # Blue - validated
-READER_UNREAD_COLOR = '#0fb302'  # Green - unread in reader mode
+READER_UNREAD_COLOR = '#36cd2e'  # Green - unread in reader mode
 READER_READ_COLOR = '#1821b4'    # Blue - read in reader mode
+
+
+def _rounded_text_pixmap(text: str, size: int = 28) -> QPixmap:
+    """Create a rounded circle with text inside (white fill, black border)."""
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.TextAntialiasing)
+    # White fill, black outline
+    painter.setBrush(QBrush(QColor("#FFFFFF")))
+    painter.setPen(QPen(QColor("#000000"), 2))
+    margin = 2
+    painter.drawEllipse(margin, margin, size - 2 * margin, size - 2 * margin)
+    # Bold text centered
+    font = QFont()
+    font.setBold(True)
+    n = len(str(text))
+    font.setPointSize(8 if n > 10 else (9 if n > 3 else 10))
+    painter.setFont(font)
+    painter.setPen(QColor("#000000"))
+    painter.drawText(0, 0, size, size, Qt.AlignCenter, str(text))
+    painter.end()
+    return pixmap
+
+
+def _format_annotation_date(dt: datetime, include_time: bool = True) -> str:
+    """Format date for display (e.g., '2/15/2025 14:32' or '2/15/2025')."""
+    if not hasattr(dt, 'month'):
+        return str(dt)[:5]
+    if include_time:
+        return f"{dt.month}/{dt.day}/{dt.year} {dt.hour}:{dt.minute:02d}"
+    return f"{dt.month}/{dt.day}/{dt.year}"
 
 
 @dataclass
@@ -32,6 +66,8 @@ class Annotation:
     image_paths: List[str] = field(default_factory=list)
     is_expanded: bool = True
     is_read: bool = False  # For reader mode: Green (unread) vs Blue (read)
+    label: str = "Point"  # Editable display name (default "Point")
+    created_at: datetime = field(default_factory=datetime.now)
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -41,17 +77,35 @@ class Annotation:
             'text': self.text,
             'is_validated': self.is_validated,
             'image_paths': self.image_paths,
+            'label': self.label,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+    
+    def display_date(self) -> str:
+        """Short date for badge (e.g. '2/8')."""
+        if self.created_at:
+            return _format_annotation_date(self.created_at)
+        return str(self.id)
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Annotation':
         """Create from dictionary."""
+        created = data.get('created_at')
+        if isinstance(created, str):
+            try:
+                created = datetime.fromisoformat(created.replace('Z', '+00:00'))
+            except Exception:
+                created = datetime.now()
+        elif created is None:
+            created = datetime.now()
         return cls(
             id=data['id'],
             point=tuple(data['point']),
             text=data.get('text', ''),
             is_validated=data.get('is_validated', False),
             image_paths=data.get('image_paths', []),
+            label=data.get('label', 'Point'),
+            created_at=created,
         )
 
 
@@ -62,6 +116,7 @@ class AnnotationCard(QFrame):
     clicked = pyqtSignal(int)  # annotation_id - opens popup
     delete_requested = pyqtSignal(int)   # annotation_id
     focus_requested = pyqtSignal(int)    # annotation_id
+    label_edited = pyqtSignal(int, str)  # annotation_id, new_label
     
     def __init__(self, annotation: Annotation, reader_mode: bool = False, parent=None):
         super().__init__(parent)
@@ -88,29 +143,51 @@ class AnnotationCard(QFrame):
         self.point_indicator.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.point_indicator)
         
-        # Title and status
-        info_layout = QVBoxLayout()
-        info_layout.setSpacing(2)
+        # Rounded date badge
+        self.date_icon = QLabel()
+        self.date_icon.setPixmap(_rounded_text_pixmap(str(self.annotation.id)))
+        self.date_icon.setFixedSize(28, 28)
+        self.date_icon.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.date_icon)
         
-        self.title_label = QLabel(f"Point {self.annotation.id}")
+        # Editable label (replaces "Point 1")
+        self.label_edit = QLineEdit()
+        self.label_edit.setText(self.annotation.label)
+        self.label_edit.setPlaceholderText("Point")
         title_font = QFont()
         title_font.setBold(True)
         title_font.setPointSize(11)
-        self.title_label.setFont(title_font)
-        self.title_label.setStyleSheet(f"color: {default_theme.text_primary};")
-        info_layout.addWidget(self.title_label)
+        self.label_edit.setFont(title_font)
+        self.label_edit.setStyleSheet(f"""
+            QLineEdit {{
+                color: {default_theme.text_primary};
+                background: transparent;
+                border: none;
+                border-bottom: 1px solid transparent;
+            }}
+            QLineEdit:focus {{
+                border-bottom: 1px solid {default_theme.border_light};
+            }}
+        """)
+        self.label_edit.setFixedHeight(24)
+        self.label_edit.editingFinished.connect(self._on_label_editing_finished)
         
-        # Status label
+        # Status label below the editable label
         self.status_label = QLabel()
         self.status_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 9px;")
+        
+        info_layout = QVBoxLayout()
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(2)
+        info_layout.addWidget(self.label_edit)
         info_layout.addWidget(self.status_label)
         
-        layout.addLayout(info_layout)
+        layout.addLayout(info_layout, 1)  # stretch
         layout.addStretch()
         
-        # Coordinates (small text)
-        coord_text = f"({self.annotation.point[0]:.1f}, {self.annotation.point[1]:.1f}, {self.annotation.point[2]:.1f})"
-        self.coord_label = QLabel(coord_text)
+        # Date (small text) - where coordinates were shown
+        date_text = _format_annotation_date(self.annotation.created_at, include_time=False) if self.annotation.created_at else str(self.annotation.id)
+        self.coord_label = QLabel(date_text)
         self.coord_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 9px;")
         layout.addWidget(self.coord_label)
         
@@ -134,6 +211,14 @@ class AnnotationCard(QFrame):
         """)
         self.delete_btn.clicked.connect(lambda: self.delete_requested.emit(self.annotation.id))
         layout.addWidget(self.delete_btn)
+    
+    def _on_label_editing_finished(self):
+        """Handle label edit - emit to panel."""
+        new_label = self.label_edit.text().strip() or "Point"
+        if new_label != self.annotation.label:
+            self.annotation.label = new_label
+            self.label_edited.emit(self.annotation.id, new_label)
+        self.label_edit.setText(self.annotation.label)
     
     def mousePressEvent(self, event):
         """Handle click to open popup."""
@@ -183,18 +268,23 @@ class AnnotationCard(QFrame):
     def update_annotation(self, annotation: Annotation):
         """Update the card with new annotation data."""
         self.annotation = annotation
+        self.date_icon.setPixmap(_rounded_text_pixmap(str(annotation.id)))
+        self.coord_label.setText(_format_annotation_date(annotation.created_at, include_time=False) if annotation.created_at else str(annotation.id))
+        self.label_edit.blockSignals(True)
+        self.label_edit.setText(annotation.label)
+        self.label_edit.blockSignals(False)
         self._update_style()
         self._update_tooltip()
     
     def _update_tooltip(self):
         """Update the hover tooltip with annotation details."""
         status = "✓ Validated" if self.annotation.is_validated else "⏳ Pending - Click to edit"
-        coord = f"({self.annotation.point[0]:.2f}, {self.annotation.point[1]:.2f}, {self.annotation.point[2]:.2f})"
+        date_str = _format_annotation_date(self.annotation.created_at, include_time=True) if self.annotation.created_at else f"#{self.annotation.id}"
         
         tooltip_parts = [
-            f"<b>Point {self.annotation.id}</b>",
+            f"<b>{self.annotation.label}</b> #{self.annotation.id}",
             f"<br><b>Status:</b> {status}",
-            f"<br><b>Location:</b> {coord}",
+            f"<br><b>Date:</b> {date_str}",
         ]
         
         if self.annotation.text:
@@ -214,7 +304,7 @@ class AnnotationPanel(QWidget):
     # Signals
     annotation_added = pyqtSignal(object)  # Annotation
     annotation_deleted = pyqtSignal(int)   # annotation_id
-    annotation_validated = pyqtSignal(int, str, list)  # annotation_id, text, image_paths
+    annotation_validated = pyqtSignal(int, str, list, str)  # annotation_id, text, image_paths, label
     open_popup_requested = pyqtSignal(int)  # annotation_id - request to open popup
     open_viewer_popup_requested = pyqtSignal(int)  # annotation_id - request to open viewer popup (reader mode)
     focus_annotation = pyqtSignal(int)     # annotation_id
@@ -253,7 +343,17 @@ class AnnotationPanel(QWidget):
         
         # Title row
         title_row = QHBoxLayout()
-        title_label = QLabel("📝 Annotations")
+        from ui.annotation_icon import get_annotation_icon_pixmap
+        anno_icon = QLabel()
+        pix = get_annotation_icon_pixmap(22)
+        if not pix.isNull():
+            anno_icon.setPixmap(pix)
+        else:
+            anno_icon.setText("📝")
+        anno_icon.setFixedSize(22, 22)
+        anno_icon.setAlignment(Qt.AlignCenter)
+        title_row.addWidget(anno_icon)
+        title_label = QLabel("Annotations")
         title_font = QFont()
         title_font.setBold(True)
         title_font.setPointSize(12)
@@ -414,6 +514,7 @@ class AnnotationPanel(QWidget):
         card.clicked.connect(self._on_card_clicked)
         card.delete_requested.connect(self._on_delete_requested)
         card.focus_requested.connect(self._on_focus_requested)
+        card.label_edited.connect(self._on_label_edited)
         
         self.annotation_cards[annotation.id] = card
         self.content_layout.addWidget(card)
@@ -475,6 +576,7 @@ class AnnotationPanel(QWidget):
             card.clicked.connect(self._on_card_clicked)
             card.delete_requested.connect(self._on_delete_requested)
             card.focus_requested.connect(self._on_focus_requested)
+            card.label_edited.connect(self._on_label_edited)
             
             self.annotation_cards[annotation.id] = card
             self.content_layout.addWidget(card)
@@ -517,21 +619,29 @@ class AnnotationPanel(QWidget):
         """Handle focus request from a card."""
         self.focus_annotation.emit(annotation_id)
     
+    def _on_label_edited(self, annotation_id: int, new_label: str):
+        """Handle label edited from a card."""
+        annotation = self.get_annotation_by_id(annotation_id)
+        if annotation:
+            annotation.label = new_label
+            logger.info(f"Annotation label updated: id={annotation_id}, label={new_label}")
+    
     def _on_clear_all(self):
         """Handle clear all button click."""
         self.clear_all_requested.emit()
     
-    def validate_annotation(self, annotation_id: int, text: str, image_paths: list):
+    def validate_annotation(self, annotation_id: int, text: str, image_paths: list, label: str = "Point"):
         """Validate an annotation (turn black) with text and images."""
         annotation = self.get_annotation_by_id(annotation_id)
         if annotation:
             annotation.is_validated = True
             annotation.text = text
             annotation.image_paths = image_paths
+            annotation.label = label or "Point"
             
             # Update card display
             if annotation_id in self.annotation_cards:
                 self.annotation_cards[annotation_id].update_annotation(annotation)
             
-            self.annotation_validated.emit(annotation_id, text, image_paths)
+            self.annotation_validated.emit(annotation_id, text, image_paths, label or "Point")
             logger.info(f"Annotation validated: id={annotation_id}")

@@ -530,12 +530,14 @@ class STLViewerWindow(QMainWindow):
             self._exit_annotation_mode()
     
     def _exit_annotation_mode(self):
-        """Exit annotation mode."""
+        """Exit annotation mode and remove all annotation markers from 3D view."""
         if hasattr(self.viewer_widget, 'disable_annotation_mode'):
             self.viewer_widget.disable_annotation_mode()
+        # Clear number tags and dots from 3D view (they were persisting on exit)
+        self._clear_all_annotations()
         self.annotation_panel.hide()
         self.toolbar.reset_annotation_state()
-        logger.info("_exit_annotation_mode: Annotation mode disabled")
+        logger.info("_exit_annotation_mode: Annotation mode disabled, markers cleared")
     
     def _on_annotation_point_picked(self, point: tuple):
         """Handle point picked for annotation - creates gray dot."""
@@ -546,7 +548,10 @@ class STLViewerWindow(QMainWindow):
         
         # Add gray visual marker to the viewer (pending state)
         if hasattr(self.viewer_widget, 'add_annotation_marker'):
-            self.viewer_widget.add_annotation_marker(annotation.id, point, '#909d92')  # Light grey
+            self.viewer_widget.add_annotation_marker(
+                annotation.id, point, '#909d92',
+                display_date=str(annotation.id)
+            )  # Light grey
     
     def _on_annotation_added(self, annotation):
         """Handle annotation added event."""
@@ -574,12 +579,19 @@ class STLViewerWindow(QMainWindow):
             point=annotation.point,
             text=annotation.text,
             image_paths=annotation.image_paths,
+            label=annotation.label,
+            created_at=annotation.created_at,
             parent=self
         )
         
         # Connect popup signals
         popup.annotation_validated.connect(self._on_popup_validated)
         popup.annotation_deleted.connect(self._on_popup_deleted)
+        popup.finished.connect(lambda: self._on_annotation_popup_closed(annotation_id))
+        
+        # Highlight selected annotation dot in yellow
+        if hasattr(self.viewer_widget, 'set_annotation_selected'):
+            self.viewer_widget.set_annotation_selected(annotation_id, True)
         
         popup.show()
         logger.info(f"_on_open_popup_requested: Opened popup for annotation {annotation_id}")
@@ -598,22 +610,29 @@ class STLViewerWindow(QMainWindow):
             point=annotation.point,
             text=annotation.text,
             image_paths=annotation.image_paths,
+            label=annotation.label,
+            created_at=annotation.created_at,
             parent=self
         )
         
-        popup.show()
-        
-        # Mark as read and update marker color to blue
+        # Mark as read and update base color to blue
         self.annotation_panel.mark_as_read(annotation_id)
         if hasattr(self.viewer_widget, 'update_annotation_marker_color'):
             self.viewer_widget.update_annotation_marker_color(annotation_id, '#1821b4')  # Blue for read
         
+        # Highlight selected annotation dot in yellow
+        if hasattr(self.viewer_widget, 'set_annotation_selected'):
+            self.viewer_widget.set_annotation_selected(annotation_id, True)
+        
+        popup.finished.connect(lambda: self._on_annotation_popup_closed(annotation_id))
+        popup.show()
+        
         logger.info(f"_on_open_viewer_popup_requested: Opened viewer popup for annotation {annotation_id}")
     
-    def _on_popup_validated(self, annotation_id: int, text: str, image_paths: list):
+    def _on_popup_validated(self, annotation_id: int, text: str, image_paths: list, label: str = "Point"):
         """Handle annotation validated from popup - turn dot black."""
         # Update annotation in panel
-        self.annotation_panel.validate_annotation(annotation_id, text, image_paths)
+        self.annotation_panel.validate_annotation(annotation_id, text, image_paths, label)
         
         # Update marker color to black (validated)
         if hasattr(self.viewer_widget, 'update_annotation_marker_color'):
@@ -626,7 +645,12 @@ class STLViewerWindow(QMainWindow):
         self.annotation_panel.remove_annotation(annotation_id)
         logger.info(f"_on_popup_deleted: Annotation {annotation_id} deleted from popup")
     
-    def _on_annotation_validated(self, annotation_id: int, text: str, image_paths: list):
+    def _on_annotation_popup_closed(self, annotation_id: int):
+        """Restore annotation dot color when popup is closed."""
+        if hasattr(self.viewer_widget, 'set_annotation_selected'):
+            self.viewer_widget.set_annotation_selected(annotation_id, False)
+    
+    def _on_annotation_validated(self, annotation_id: int, text: str, image_paths: list, label: str = "Point"):
         """Handle annotation validated event from panel."""
         logger.info(f"_on_annotation_validated: Annotation {annotation_id} validated")
     
@@ -837,15 +861,15 @@ class STLViewerWindow(QMainWindow):
                     ann_id = ann_data['id']
                     point = tuple(ann_data['point'])
                     is_validated = ann_data.get('is_validated', False)
-                    # In reader mode, all dots are black (validated view)
-                    # In normal mode, use gray/black based on validation state
+                    is_read = ann_data.get('is_read', False)
+                    # In reader mode: green=unread, blue=read. In normal mode: grey=pending, blue=validated.
                     if reader_mode:
-                        color = '#0fb302'  # Green for unread in reader mode
+                        color = '#1821b4' if is_read else '#36cd2e'  # Blue=read, green=unread
                     else:
                         color = '#1821b4' if is_validated else '#909d92'  # Blue if validated, light grey if pending
-                    
+                    # Show annotation number near dot
                     if hasattr(self.viewer_widget, 'add_annotation_marker'):
-                        self.viewer_widget.add_annotation_marker(ann_id, point, color)
+                        self.viewer_widget.add_annotation_marker(ann_id, point, color, display_date=str(ann_id))
                 
                 logger.info(f"Loaded {len(annotations)} annotations for {file_path} (reader_mode={reader_mode})")
                 
@@ -922,31 +946,30 @@ class STLViewerWindow(QMainWindow):
             # Clear existing annotations first
             self._clear_all_annotations()
             
+            # Use reader_mode from import (sender vs reader detection via creator_token)
+            self.toolbar.set_reader_mode(reader_mode)
+            self.annotation_panel.set_reader_mode(reader_mode)
+            self.annotation_panel.show()
+            
             # Load annotations if present
             if annotations:
                 self.annotation_panel.load_annotations(annotations)
                 
-                # Always enable reader mode for .ecto files
-                self.toolbar.set_reader_mode(True)
-                self.annotation_panel.set_reader_mode(True)
-                self.annotation_panel.show()
-                
-                # Add markers to the viewer
+                # Add markers: reader mode = green/blue (is_read), sender mode = grey/blue (is_validated)
                 for ann_data in annotations:
                     ann_id = ann_data['id']
                     point = tuple(ann_data['point'])
-                    # All dots are blue in reader mode
-                    color = '#1821b4'
-                    
+                    if reader_mode:
+                        is_read = ann_data.get('is_read', False)
+                        color = '#1821b4' if is_read else '#36cd2e'  # Blue=read, green=unread
+                    else:
+                        is_validated = ann_data.get('is_validated', False)
+                        color = '#1821b4' if is_validated else '#909d92'  # Blue=validated, grey=pending
                     if hasattr(self.viewer_widget, 'add_annotation_marker'):
-                        self.viewer_widget.add_annotation_marker(ann_id, point, color)
+                        self.viewer_widget.add_annotation_marker(ann_id, point, color, display_date=str(ann_id))
                 
-                logger.info(f"_load_ecto_file: Loaded {len(annotations)} annotations (reader_mode=True)")
+                logger.info(f"_load_ecto_file: Loaded {len(annotations)} annotations (reader_mode={reader_mode})")
                 self._update_sidebar_annotation_count()
-            else:
-                # Even without annotations, enable reader mode
-                self.toolbar.set_reader_mode(True)
-                self.annotation_panel.set_reader_mode(True)
             
             logger.info(f"_load_ecto_file: Successfully loaded .ecto file")
             

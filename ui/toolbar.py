@@ -2,12 +2,13 @@
 Top horizontal toolbar for 3D view controls.
 """
 import logging
+import os
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
     QSizePolicy, QFrame, QSpacerItem, QApplication
 )
 from PyQt5.QtCore import Qt, QEvent, pyqtSignal, QPropertyAnimation, QEasingCurve, QSettings
-from PyQt5.QtGui import QFont, QFontMetrics
+from PyQt5.QtGui import QFont, QFontMetrics, QPixmap
 from ui.styles import default_theme
 
 logger = logging.getLogger(__name__)
@@ -16,9 +17,11 @@ logger = logging.getLogger(__name__)
 class ToolbarButton(QPushButton):
     """A styled toolbar button with icon and text."""
     
-    def __init__(self, icon_text, label_text, tooltip, parent=None):
+    def __init__(self, icon_text, label_text, tooltip, parent=None, icon_path=None):
         super().__init__(parent)
         self.icon_text = icon_text
+        self.icon_path = icon_path
+        self._preferred_icon_path = icon_path  # Kept when set_icon is called with emoji
         self.label_text = label_text
         self._is_active = False
         
@@ -27,11 +30,17 @@ class ToolbarButton(QPushButton):
         self._layout.setContentsMargins(6, 4, 8, 4)
         self._layout.setSpacing(4)
         
-        # Icon
-        self.icon_label = QLabel(icon_text)
+        # Icon (image or emoji)
+        self.icon_label = QLabel()
         self.icon_label.setStyleSheet(f"color: {default_theme.icon_blue}; font-size: 12px; background: transparent;")
         self.icon_label.setAlignment(Qt.AlignCenter)
-        self.icon_label.setFixedWidth(14)
+        self._icon_size = 24 if icon_path else 14
+        self.icon_label.setFixedWidth(self._icon_size)
+        self.icon_label.setFixedHeight(24 if icon_path else 14)
+        if icon_path:
+            self._set_icon_pixmap(icon_path)
+        else:
+            self.icon_label.setText(icon_text)
         self._layout.addWidget(self.icon_label)
         
         # Text label
@@ -54,6 +63,16 @@ class ToolbarButton(QPushButton):
         self._update_min_width()
         self.installEventFilter(self)
 
+    def _set_icon_pixmap(self, path):
+        """Set icon from image file (crisp scaling for high-DPI)."""
+        from ui.annotation_icon import get_annotation_icon_pixmap
+        pixmap = get_annotation_icon_pixmap(self._icon_size, path)
+        if not pixmap.isNull():
+            self.icon_label.setPixmap(pixmap)
+            self.icon_label.setText("")
+        else:
+            self.icon_label.setText(self.icon_text or "?")
+
     def _update_min_width(self):
         """Ensure the button is wide enough to show its full label."""
         if not hasattr(self, "_layout"):
@@ -63,7 +82,7 @@ class ToolbarButton(QPushButton):
         left = m.left()
         right = m.right()
 
-        icon_w = 14  # Fixed icon width
+        icon_w = self._icon_size if getattr(self, '_preferred_icon_path', None) or getattr(self, 'icon_path', None) else 14
         text = (self.text_label.text() or "").strip()
 
         if text:
@@ -141,10 +160,23 @@ class ToolbarButton(QPushButton):
         self.text_label.setText(text)
         self._update_min_width()
     
-    def set_icon(self, icon_text):
-        """Update the button icon."""
-        self.icon_text = icon_text
-        self.icon_label.setText(icon_text)
+    def set_icon(self, icon_text_or_path):
+        """Update the button icon (emoji text or path to image)."""
+        import os
+        # If we have a preferred image icon and caller passes emoji, keep the image
+        if (self._preferred_icon_path and isinstance(icon_text_or_path, str) and
+                not os.path.isfile(icon_text_or_path) and icon_text_or_path in ("📝", "✏️")):
+            self._set_icon_pixmap(self._preferred_icon_path)
+            self.icon_text = icon_text_or_path
+            return
+        self.icon_text = icon_text_or_path
+        if isinstance(icon_text_or_path, str) and os.path.isfile(icon_text_or_path):
+            self.icon_path = icon_text_or_path
+            self._set_icon_pixmap(icon_text_or_path)
+        else:
+            self.icon_path = None
+            self.icon_label.setPixmap(QPixmap())
+            self.icon_label.setText(icon_text_or_path or "")
     
     def eventFilter(self, obj, event):
         """Handle hover events."""
@@ -278,7 +310,11 @@ class ViewControlsToolbar(QWidget):
         self.ruler_btn.setEnabled(False)  # Disabled until model is loaded
         content_layout.addWidget(self.ruler_btn)
         
-        self.annotation_btn = ToolbarButton("📝", "Annotate", "Add annotations to the model")
+        _anno_icon = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "assets", "annotation_icon.png"))
+        self.annotation_btn = ToolbarButton(
+            "📝", "Annotate", "Add annotations to the model",
+            icon_path=_anno_icon if os.path.exists(_anno_icon) else None
+        )
         self.annotation_btn.clicked.connect(self._on_annotation_clicked)
         self.annotation_btn.setEnabled(False)  # Disabled until model is loaded
         content_layout.addWidget(self.annotation_btn)

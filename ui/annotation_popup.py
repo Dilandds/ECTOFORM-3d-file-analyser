@@ -6,7 +6,7 @@ import logging
 from typing import List, Optional
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QTextEdit, QFileDialog, QScrollArea, QFrame, QWidget, QSizePolicy
+    QTextEdit, QFileDialog, QScrollArea, QFrame, QWidget, QSizePolicy, QLineEdit
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QPixmap
@@ -102,18 +102,21 @@ class AnnotationPopup(QDialog):
     """Popup dialog for editing an annotation."""
     
     # Signals
-    annotation_validated = pyqtSignal(int, str, list)  # annotation_id, text, image_paths
+    annotation_validated = pyqtSignal(int, str, list, str)  # annotation_id, text, image_paths, label
     annotation_deleted = pyqtSignal(int)  # annotation_id
     
     def __init__(self, annotation_id: int, point: tuple, text: str = "", 
-                 image_paths: Optional[List[str]] = None, parent=None):
+                 image_paths: Optional[List[str]] = None, label: str = "Point",
+                 created_at=None, parent=None):
         super().__init__(parent)
         self.annotation_id = annotation_id
         self.point = point
         self.text = text
         self.image_paths = image_paths or []
+        self.label = label
+        self.created_at = created_at
         
-        self.setWindowTitle(f"Annotation Point {annotation_id}")
+        self.setWindowTitle(f"Annotation {label} {annotation_id}")
         self.setModal(False)  # Non-modal so user can still interact with 3D view
         self.setMinimumSize(500, 550)
         self.setMaximumSize(700, 800)
@@ -135,24 +138,50 @@ class AnnotationPopup(QDialog):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(12)
         
-        # Header
+        # Header: annotation icon + rounded number + editable label
         header_layout = QHBoxLayout()
-        
-        title_label = QLabel(f"📍 Point {self.annotation_id}")
+        from ui.annotation_icon import get_annotation_icon_pixmap
+        anno_icon = QLabel()
+        pix = get_annotation_icon_pixmap(28)
+        if not pix.isNull():
+            anno_icon.setPixmap(pix)
+        anno_icon.setFixedSize(28, 28)
+        anno_icon.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(anno_icon)
+        from ui.annotation_panel import _rounded_text_pixmap
+        num_icon = QLabel()
+        num_icon.setPixmap(_rounded_text_pixmap(str(self.annotation_id), size=32))
+        num_icon.setFixedSize(32, 32)
+        header_layout.addWidget(num_icon)
+        self.label_edit = QLineEdit()
+        self.label_edit.setText(self.label)
+        self.label_edit.setPlaceholderText("Point")
         title_font = QFont()
         title_font.setBold(True)
         title_font.setPointSize(13)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet(f"color: {default_theme.text_title};")
-        header_layout.addWidget(title_label)
+        self.label_edit.setFont(title_font)
+        self.label_edit.setStyleSheet(f"""
+            QLineEdit {{
+                color: {default_theme.text_title};
+                background: transparent;
+                border: none;
+                border-bottom: 1px solid transparent;
+            }}
+            QLineEdit:focus {{
+                border-bottom: 1px solid {default_theme.border_light};
+            }}
+        """)
+        self.label_edit.setFixedHeight(28)
+        header_layout.addWidget(self.label_edit)
         
         header_layout.addStretch()
         
-        # Coordinates
-        coord_text = f"({self.point[0]:.2f}, {self.point[1]:.2f}, {self.point[2]:.2f})"
-        coord_label = QLabel(coord_text)
-        coord_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 10px;")
-        header_layout.addWidget(coord_label)
+        # Date (where coordinates were shown)
+        from ui.annotation_panel import _format_annotation_date
+        date_text = _format_annotation_date(self.created_at, include_time=True) if self.created_at and hasattr(self.created_at, 'month') else str(self.annotation_id)
+        date_label = QLabel(date_text)
+        date_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 10px;")
+        header_layout.addWidget(date_label)
         
         main_layout.addLayout(header_layout)
         
@@ -328,7 +357,8 @@ class AnnotationPopup(QDialog):
     def _on_done(self):
         """Handle Done button - validate the annotation."""
         self.text = self.text_edit.toPlainText()
-        self.annotation_validated.emit(self.annotation_id, self.text, self.image_paths)
+        self.label = self.label_edit.text().strip() or "Point"
+        self.annotation_validated.emit(self.annotation_id, self.text, self.image_paths, self.label)
         self.accept()
     
     def _on_delete(self):

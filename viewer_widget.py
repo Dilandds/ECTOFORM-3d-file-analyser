@@ -1613,7 +1613,8 @@ class STLViewerWidget(QWidget):
         # Create picker
         self._annotation_picker = vtk.vtkCellPicker()
         try:
-            self._annotation_picker.SetTolerance(0.01)
+            # Larger tolerance helps on high-DPI and when clicking plain/flat surfaces
+            self._annotation_picker.SetTolerance(0.05)
         except Exception:
             pass
         
@@ -1695,18 +1696,10 @@ class STLViewerWidget(QWidget):
                 logger.info(f"_on_annotation_left_click: No hit at ({x}, {y})")
                 return
             
+            # Use exact pick position on surface - do NOT snap to vertices, which pulls
+            # annotations to triangle corners/edges and prevents placing on plain surfaces
             picked_world = self._annotation_picker.GetPickPosition()
-            
-            # Snap to nearest mesh vertex
-            snapped = picked_world
-            try:
-                if self.current_mesh is not None and hasattr(self.current_mesh, 'find_closest_point'):
-                    idx = self.current_mesh.find_closest_point(picked_world)
-                    snapped = self.current_mesh.points[int(idx)]
-            except Exception as e:
-                logger.debug(f"_on_annotation_left_click: Vertex snapping failed: {e}")
-            
-            point_tuple = tuple(float(c) for c in snapped)
+            point_tuple = tuple(float(c) for c in picked_world)
             logger.info(f"_on_annotation_left_click: hit at {point_tuple}")
             
             # Call the callback if set
@@ -1716,19 +1709,23 @@ class STLViewerWidget(QWidget):
         except Exception as e:
             logger.error(f"_on_annotation_left_click: Picking failed: {e}", exc_info=True)
     
-    def add_annotation_marker(self, annotation_id: int, point: tuple, color: str = '#909d92') -> object:
-        """Add a visible marker for an annotation point.
+    def add_annotation_marker(self, annotation_id: int, point: tuple, color: str = '#909d92',
+                              display_date: str = None) -> object:
+        """Add a visible marker for an annotation point with date label.
         
         Args:
             annotation_id: Unique ID for the annotation
             point: (x, y, z) world coordinates
             color: Marker color (hex string) - default gray for pending
+            display_date: Label to show at the point (e.g. annotation number '1', '2', '3')
             
         Returns:
             The actor for the marker, or None if failed
         """
         if self.plotter is None or self.current_mesh is None:
             return None
+        
+        display_date = display_date or str(annotation_id)
         
         try:
             # Flat 1.5% of max dimension — consistent across all model sizes
@@ -1759,15 +1756,41 @@ class STLViewerWidget(QWidget):
                 name=f'annotation_marker_{annotation_id}'
             )
             
+            # Add date label slightly above the sphere so it's visible
+            label_actor = None
+            try:
+                offset = sphere_radius * 1.5
+                label_pos = (point[0], point[1] + offset, point[2])
+                label_points = pv.PolyData([list(label_pos)])
+                label_actor = self.plotter.add_point_labels(
+                    label_points,
+                    [display_date],
+                    font_size=10,
+                    text_color='black',
+                    font_family='arial',
+                    bold=True,
+                    show_points=False,
+                    always_visible=True,
+                    name=f'annotation_label_{annotation_id}'
+                )
+                if label_actor:
+                    self._set_actor_always_on_top(label_actor)
+            except Exception as e:
+                logger.debug(f"add_annotation_marker: Could not add date label: {e}")
+            
             self.annotations.append({
                 'id': annotation_id,
                 'point': point,
                 'actor': actor,
+                'label_actor': label_actor,
+                'base_color': color,  # For restoring when deselected
             })
             self.annotation_actors.append(actor)
+            if label_actor:
+                self.annotation_actors.append(label_actor)
             
             self.plotter.render()
-            logger.info(f"add_annotation_marker: Added marker id={annotation_id} at {point} with color {color}")
+            logger.info(f"add_annotation_marker: Added marker id={annotation_id} at {point} with color {color}, date={display_date}")
             return actor
             
         except Exception as e:
@@ -1784,13 +1807,42 @@ class STLViewerWidget(QWidget):
         for ann in self.annotations:
             if ann['id'] == annotation_id:
                 try:
-                    ann['actor'].GetProperty().SetColor(
-                        *self._hex_to_rgb_normalized(color)
-                    )
+                    ann['base_color'] = color
+                    # Only update actor if not currently selected (yellow)
+                    if not ann.get('selected', False):
+                        ann['actor'].GetProperty().SetColor(
+                            *self._hex_to_rgb_normalized(color)
+                        )
                     self.plotter.render()
                     logger.info(f"update_annotation_marker_color: Updated id={annotation_id} to {color}")
                 except Exception as e:
                     logger.warning(f"update_annotation_marker_color: Failed: {e}")
+                break
+    
+    def set_annotation_selected(self, annotation_id: int, selected: bool):
+        """Set annotation marker to yellow when selected, restore base color when deselected."""
+        if selected:
+            # Deselect any previously selected
+            for ann in self.annotations:
+                if ann.get('selected', False):
+                    ann['selected'] = False
+                    try:
+                        ann['actor'].GetProperty().SetColor(
+                            *self._hex_to_rgb_normalized(ann.get('base_color', '#909d92'))
+                        )
+                    except Exception:
+                        pass
+        for ann in self.annotations:
+            if ann['id'] == annotation_id:
+                try:
+                    ann['selected'] = selected
+                    color = '#FACC15' if selected else ann.get('base_color', '#909d92')  # Yellow when selected
+                    ann['actor'].GetProperty().SetColor(
+                        *self._hex_to_rgb_normalized(color)
+                    )
+                    self.plotter.render()
+                except Exception as e:
+                    logger.warning(f"set_annotation_selected: Failed: {e}")
                 break
     
     def remove_annotation_marker(self, annotation_id: int):
@@ -1804,6 +1856,20 @@ class STLViewerWidget(QWidget):
                     self.plotter.remove_actor(ann['actor'])
                     if ann['actor'] in self.annotation_actors:
                         self.annotation_actors.remove(ann['actor'])
+                    label_actor = ann.get('label_actor')
+                    if label_actor is not None:
+                        try:
+                            self.plotter.remove_actor(label_actor)
+                        except Exception:
+                            pass
+                        overlay = getattr(self, '_overlay_renderer', None)
+                        if overlay is not None:
+                            try:
+                                overlay.RemoveActor(label_actor)
+                            except Exception:
+                                pass
+                        if label_actor in self.annotation_actors:
+                            self.annotation_actors.remove(label_actor)
                 except Exception as e:
                     logger.debug(f"remove_annotation_marker: Could not remove actor: {e}")
                 self.annotations.pop(i)
@@ -1812,14 +1878,27 @@ class STLViewerWidget(QWidget):
                 break
     
     def clear_all_annotation_markers(self):
-        """Remove all annotation markers."""
+        """Remove all annotation markers and their date labels."""
         if self.plotter is None:
             return
         
         logger.info("clear_all_annotation_markers: Clearing all annotations...")
-        for ann in self.annotations:
+        overlay = getattr(self, '_overlay_renderer', None)
+        for ann in list(self.annotations):
             try:
                 self.plotter.remove_actor(ann['actor'])
+                label_actor = ann.get('label_actor')
+                if label_actor is not None:
+                    # Labels are in overlay renderer (always-on-top) - must remove from both
+                    try:
+                        self.plotter.remove_actor(label_actor)
+                    except Exception:
+                        pass
+                    if overlay is not None:
+                        try:
+                            overlay.RemoveActor(label_actor)
+                        except Exception:
+                            pass
             except Exception:
                 pass
         

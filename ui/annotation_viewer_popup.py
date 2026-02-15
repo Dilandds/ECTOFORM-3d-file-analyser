@@ -282,14 +282,17 @@ class AnnotationViewerPopup(QDialog):
     """Read-only popup dialog for viewing an annotation."""
     
     def __init__(self, annotation_id: int, point: tuple, text: str = "", 
-                 image_paths: Optional[List[str]] = None, parent=None):
+                 image_paths: Optional[List[str]] = None, label: str = "Point",
+                 created_at=None, parent=None):
         super().__init__(parent)
         self.annotation_id = annotation_id
         self.point = point
         self.text = text
         self.image_paths = image_paths or []
+        self.label = label
+        self.created_at = created_at
         
-        self.setWindowTitle(f"View Annotation {annotation_id}")
+        self.setWindowTitle(f"View Annotation {label} {annotation_id}")
         self.setModal(False)
         self.setMinimumSize(320, 300)
         self.setMaximumSize(400, 450)
@@ -310,10 +313,22 @@ class AnnotationViewerPopup(QDialog):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(12)
         
-        # Header with Reader Mode indicator
+        # Header with annotation icon
         header_layout = QHBoxLayout()
-        
-        title_label = QLabel(f"📍 Point {self.annotation_id}")
+        from ui.annotation_icon import get_annotation_icon_pixmap
+        anno_icon = QLabel()
+        pix = get_annotation_icon_pixmap(28)
+        if not pix.isNull():
+            anno_icon.setPixmap(pix)
+        anno_icon.setFixedSize(28, 28)
+        anno_icon.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(anno_icon)
+        from ui.annotation_panel import _rounded_text_pixmap
+        num_icon = QLabel()
+        num_icon.setPixmap(_rounded_text_pixmap(str(self.annotation_id), size=32))
+        num_icon.setFixedSize(32, 32)
+        header_layout.addWidget(num_icon)
+        title_label = QLabel(f"{self.label} {self.annotation_id}")
         title_font = QFont()
         title_font.setBold(True)
         title_font.setPointSize(13)
@@ -339,11 +354,12 @@ class AnnotationViewerPopup(QDialog):
         
         main_layout.addLayout(header_layout)
         
-        # Coordinates
-        coord_text = f"📐 ({self.point[0]:.2f}, {self.point[1]:.2f}, {self.point[2]:.2f})"
-        coord_label = QLabel(coord_text)
-        coord_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 10px;")
-        main_layout.addWidget(coord_label)
+        # Date (where coordinates were shown)
+        from ui.annotation_panel import _format_annotation_date
+        date_text = _format_annotation_date(self.created_at, include_time=True) if self.created_at and hasattr(self.created_at, 'month') else str(self.annotation_id)
+        date_label = QLabel(f"📅 {date_text}")
+        date_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 10px;")
+        main_layout.addWidget(date_label)
         
         # Comment section
         if self.text:

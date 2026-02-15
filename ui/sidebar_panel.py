@@ -1124,7 +1124,7 @@ class SidebarPanel(QWidget):
             QApplication.processEvents()
             
             # Export as .ecto bundle
-            success, result = EctoFormat.export(
+            success, result, creator_token = EctoFormat.export(
                 mesh=mesh,
                 annotations=annotations,
                 output_path=file_path,
@@ -1137,6 +1137,13 @@ class SidebarPanel(QWidget):
             self.export_annotations_btn.setText("Export as .ecto")
             
             if success:
+                # Register creator token so sender can reopen in editor mode
+                if creator_token:
+                    try:
+                        from core.creator_registry import register_creator_token
+                        register_creator_token(creator_token)
+                    except ImportError:
+                        pass
                 # Emit signal that annotations were exported
                 self.annotations_exported.emit()
                 
