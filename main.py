@@ -70,13 +70,26 @@ def main():
     logger.info("=" * 50)
     
     try:
-        # Request multi-sampling for OpenGL on Windows
-        # MSAA=0 - framebuffer reallocation on resize/maximize causes black screen; FXAA used in viewer instead
+        # Windows: OpenGL setup before QApplication
         if sys.platform == 'win32':
             from PyQt5.QtGui import QSurfaceFormat
+            # Option: force software OpenGL to avoid driver black screen on resize/maximize
+            # Set ECTOFORM_USE_SOFTWARE_OPENGL=1 to enable (slower but often fixes black screen)
+            if os.environ.get('ECTOFORM_USE_SOFTWARE_OPENGL', '').lower() in ('1', 'true', 'yes'):
+                QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL, True)
+                logger.info("Using software OpenGL (ECTOFORM_USE_SOFTWARE_OPENGL=1)")
             fmt = QSurfaceFormat()
             fmt.setSamples(0)
             QSurfaceFormat.setDefaultFormat(fmt)
+        # Windows: pre-initialize VTK with a Plotter (pyvistaqt #386 workaround for QtInteractor issues)
+        if sys.platform == 'win32':
+            try:
+                import pyvista as pv
+                _preinit = pv.Plotter()
+                _preinit.close()
+                logger.info("VTK pre-initialized (pyvistaqt workaround)")
+            except Exception as e:
+                logger.debug(f"VTK pre-init skipped: {e}")
         print("Step 1: Creating QApplication...", file=sys.stderr)
         safe_flush(sys.stderr)
         logger.info("Step 1: Creating QApplication...")

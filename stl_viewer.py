@@ -1,6 +1,7 @@
 """
 Main ECTOFORM Window with minimalistic UI.
 """
+import os
 import sys
 import logging
 from pathlib import Path
@@ -9,14 +10,19 @@ from PyQt5.QtWidgets import (
     QMessageBox, QSplitter, QFrame, QApplication
 )
 from PyQt5.QtCore import Qt, QEvent, QTimer
-# Try QtInteractor first, fallback to offscreen if it fails
-try:
-    from viewer_widget import STLViewerWidget
-    USE_OFFSCREEN = False
-except Exception as e:
-    print(f"Warning: Could not import QtInteractor viewer, using offscreen fallback: {e}", file=sys.stderr)
+# Windows: set ECTOFORM_USE_OFFSCREEN=1 to force offscreen renderer (avoids black screen on maximize)
+_force_offscreen = os.environ.get('ECTOFORM_USE_OFFSCREEN', '').lower() in ('1', 'true', 'yes')
+if _force_offscreen and sys.platform == 'win32':
     from viewer_widget_offscreen import STLViewerWidgetOffscreen as STLViewerWidget
     USE_OFFSCREEN = True
+else:
+    try:
+        from viewer_widget import STLViewerWidget
+        USE_OFFSCREEN = False
+    except Exception as e:
+        print(f"Warning: Could not import QtInteractor viewer, using offscreen fallback: {e}", file=sys.stderr)
+        from viewer_widget_offscreen import STLViewerWidgetOffscreen as STLViewerWidget
+        USE_OFFSCREEN = True
 
 from ui.sidebar_panel import SidebarPanel
 from ui.toolbar import ViewControlsToolbar
@@ -213,10 +219,14 @@ class STLViewerWindow(QMainWindow):
         """Force background color + render on viewer (called after resize/maximize)."""
         if hasattr(self, 'viewer_widget') and getattr(self.viewer_widget, 'plotter', None) is not None:
             try:
-                # Re-apply background color so VTK framebuffer uses correct clear color after resize
                 plotter = self.viewer_widget.plotter
+                # Re-apply background color so VTK framebuffer uses correct clear color after resize
                 bg = getattr(plotter, 'background_color', 'white')
                 plotter.background_color = bg
+                # Reset camera clipping range (VTK: can fix black screen when camera clips data)
+                ren = getattr(plotter, 'renderer', None)
+                if ren is not None and hasattr(ren, 'ResetCameraClippingRange'):
+                    ren.ResetCameraClippingRange()
                 if hasattr(self.viewer_widget, '_sync_overlay_viewport'):
                     self.viewer_widget._sync_overlay_viewport()
                 plotter.render()

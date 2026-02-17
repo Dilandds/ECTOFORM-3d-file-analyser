@@ -136,6 +136,10 @@ class STLViewerWidget(QWidget):
                 # Re-apply background color so VTK framebuffer uses correct clear color after resize
                 bg = getattr(self.plotter, 'background_color', 'white')
                 self.plotter.background_color = bg
+                # Reset camera clipping range (VTK discourse: can fix black screen when camera clips data)
+                ren = getattr(self.plotter, 'renderer', None)
+                if ren is not None and hasattr(ren, 'ResetCameraClippingRange'):
+                    ren.ResetCameraClippingRange()
                 self._sync_overlay_viewport()
                 self.plotter.render()  # Force render BEFORE super() - VTK must see new size
             except Exception as e:
