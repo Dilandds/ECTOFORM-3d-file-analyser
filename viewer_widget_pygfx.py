@@ -597,15 +597,30 @@ class STLViewerWidget(QWidget):
             return
         try:
             self._safe_set_aspect()
-            center, _ = self._get_view_center_and_distance()
-            cam_pos = np.array(self._camera.local.position)
-            view_dir = np.array(center) - cam_pos
-            n = np.linalg.norm(view_dir)
-            if n > 1e-12:
-                view_dir = tuple(view_dir / n)
+            # In ruler mode, preserve the current ortho view (front/top/left/etc.) instead of
+            # recomputing from camera position, which can produce wrong view when toolbar shows.
+            if getattr(self, 'ruler_mode', False):
+                view_presets = {
+                    "front": ((1, 0, 0), (0, 1, 0)),
+                    "top": ((0, 0, 1), (0, 1, 0)),
+                    "left": ((-1, 0, 0), (0, 1, 0)),
+                    "right": ((1, 0, 0), (0, 1, 0)),
+                    "bottom": ((0, 0, -1), (0, 1, 0)),
+                    "rear": ((0, -1, 0), (0, 0, 1)),
+                }
+                preset = view_presets.get(getattr(self, '_ruler_current_view', 'front'), ((1, 0, 0), (0, 1, 0)))
+                view_dir, up = preset
+                logger.debug(f"reframe_for_viewport: ruler_mode=True, preserving view={getattr(self, '_ruler_current_view', 'front')}")
             else:
-                view_dir = (1.2, -0.8, -1.0)
-            up = tuple(self._camera.local.up)
+                center, _ = self._get_view_center_and_distance()
+                cam_pos = np.array(self._camera.local.position)
+                view_dir = np.array(center) - cam_pos
+                n = np.linalg.norm(view_dir)
+                if n > 1e-12:
+                    view_dir = tuple(view_dir / n)
+                else:
+                    view_dir = (1.2, -0.8, -1.0)
+                up = tuple(self._camera.local.up)
             self._camera.show_object(self._mesh_obj, view_dir=view_dir, scale=1.8, up=up)
             if self._canvas:
                 self._canvas.request_draw()
@@ -636,6 +651,7 @@ class STLViewerWidget(QWidget):
     def view_front_ortho(self):
         """Front orthographic view (ruler mode)."""
         self._ruler_current_view = "front"
+        logger.debug("view_front_ortho: Setting front view (view_dir +X)")
         self._set_view(view_dir=(1, 0, 0), up=(0, 1, 0))
 
     def view_top_ortho(self):
@@ -1261,10 +1277,10 @@ class STLViewerWidget(QWidget):
                 view_up = np.array([0, 1, 0])
             b = self.current_mesh.bounds if self.current_mesh else None
             max_dim = max(b[1] - b[0], b[3] - b[2], b[5] - b[4]) if b else length
-            # Scale background width based on text length for full coverage
+            # Scale background width based on text length - use generous padding so label is fully covered
             char_count = len(label_text)
-            bg_w = max_dim * (0.012 * char_count + 0.02)
-            bg_h = max_dim * 0.04
+            bg_w = max_dim * (0.022 * char_count + 0.06)  # Wider: covers "43.68 mm" etc. with padding
+            bg_h = max_dim * 0.045  # Slightly taller for bold text
             normal = np.cross(view_right, view_up)
             n = np.linalg.norm(normal)
             if n > 1e-12:
@@ -1285,7 +1301,10 @@ class STLViewerWidget(QWidget):
             bg_plane.local.matrix = m
             self._scene.add(bg_plane)
             self.measurement_actors.append(bg_plane)
-            lbl_mat = gfx.TextMaterial(color="#000000")
+            try:
+                lbl_mat = gfx.TextMaterial(color="#000000", weight_offset=300)
+            except TypeError:
+                lbl_mat = gfx.TextMaterial(color="#000000")
             lbl_mat.depth_test = False
             lbl_mat.depth_write = False
             lbl_mat.render_queue = 4000
@@ -1425,7 +1444,7 @@ class STLViewerWidget(QWidget):
             self._controller.camera = ortho
             if self._canvas:
                 self._canvas.request_draw()
-            logger.info("_switch_to_orthographic_camera: Switched to orthographic")
+            logger.info("_switch_to_orthographic_camera: Switched to orthographic, front view")
         except Exception as e:
             logger.warning(f"_switch_to_orthographic_camera: {e}")
 

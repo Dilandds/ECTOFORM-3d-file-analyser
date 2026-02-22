@@ -561,10 +561,14 @@ class STLViewerWindow(QMainWindow):
             if hasattr(self.viewer_widget, 'enable_ruler_mode'):
                 success = self.viewer_widget.enable_ruler_mode()
                 if success:
+                    logger.info("_toggle_ruler_mode: Showing ruler toolbar, setting front view")
                     self.ruler_toolbar.show()
                     self.ruler_toolbar.reset_to_front()
                     self._ruler_view_front()  # Auto-switch to front view
-                    logger.info("_toggle_ruler_mode: Ruler mode enabled")
+                    # Defer front view again after layout settles (ruler_toolbar.show triggers resize
+                    # which schedules reframe_for_viewport at 50ms; ensure front view wins)
+                    QTimer.singleShot(100, self._ruler_view_front)
+                    logger.info("_toggle_ruler_mode: Ruler mode enabled (front view set, deferred at 100ms)")
                 else:
                     # Failed to enable, reset toolbar state
                     self.toolbar.ruler_mode_enabled = False
