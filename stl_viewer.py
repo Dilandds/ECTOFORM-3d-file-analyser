@@ -433,6 +433,15 @@ class STLViewerWindow(QMainWindow):
     
     def _toggle_theme(self):
         """Toggle between light and dark viewer theme."""
+        # Pygfx viewer
+        if hasattr(self.viewer_widget, 'set_background_color'):
+            try:
+                color = '#1a1a2e' if self.toolbar.dark_theme else '#ffffff'
+                self.viewer_widget.set_background_color(color)
+            except Exception as e:
+                logger.warning(f"Could not toggle theme (pygfx): {e}")
+            return
+        # PyVista viewer
         if hasattr(self.viewer_widget, 'plotter') and self.viewer_widget.plotter is not None:
             try:
                 if self.toolbar.dark_theme:

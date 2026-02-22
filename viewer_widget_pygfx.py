@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 def _trimesh_to_pyvista(tm):
     """Convert trimesh (Trimesh or Scene) to PyVista PolyData for MeshCalculator compatibility."""
     import trimesh
-    import numpy as np
     import pyvista as pv
 
     if isinstance(tm, trimesh.Scene):
@@ -33,6 +32,34 @@ def _trimesh_to_pyvista(tm):
     faces = np.asarray(tm.faces, dtype=np.int32)
     cells = np.column_stack([np.full(len(faces), 3), faces]).ravel().astype(np.int32)
     return pv.PolyData(vertices, cells)
+
+
+def _pyvista_to_trimesh(pv_mesh):
+    """Convert PyVista PolyData to trimesh.Trimesh for pygfx rendering."""
+    import trimesh
+    import pyvista as pv
+
+    try:
+        pv_mesh = pv_mesh.triangulate()
+    except Exception:
+        pass
+    verts = np.asarray(pv_mesh.points, dtype=np.float64)
+    faces_arr = pv_mesh.faces
+    # PyVista: [3, i0, i1, i2, 3, i3, i4, i5, ...] for triangles
+    if len(faces_arr) >= 4 and len(faces_arr) % 4 == 0:
+        faces = faces_arr.reshape(-1, 4)[:, 1:4]
+    else:
+        # Parse variable-length faces
+        idx = 0
+        faces_list = []
+        while idx < len(faces_arr):
+            n = int(faces_arr[idx])
+            idx += 1
+            if n == 3 and idx + 3 <= len(faces_arr):
+                faces_list.append([faces_arr[idx], faces_arr[idx + 1], faces_arr[idx + 2]])
+            idx += n
+        faces = np.array(faces_list, dtype=np.int32) if faces_list else np.zeros((0, 3), dtype=np.int32)
+    return trimesh.Trimesh(vertices=verts, faces=faces)
 
 
 def _debug_print(msg):
@@ -133,8 +160,8 @@ class STLViewerWidget(QWidget):
 
             self._scene = gfx.Scene()
             # White background (PyVista: background_color='white')
-            background = gfx.Background.from_color("#ffffff")
-            self._scene.add(background)
+            self._background = gfx.Background.from_color("#ffffff")
+            self._scene.add(self._background)
 
             # PyVista-equivalent lighting: main (1,1,1) intensity 1.0, fill (-1,-0.5,0.5) intensity 0.4
             self._scene.add(gfx.AmbientLight())
@@ -180,7 +207,7 @@ class STLViewerWidget(QWidget):
             logger.error(f"STLViewerWidget (pygfx): Init failed: {e}", exc_info=True)
 
     def load_stl(self, file_path):
-        """Load and display an STL file. Returns True if successful."""
+        """Load and display a 3D file (STL, STEP, 3DM, OBJ, IGES, PLY). Returns True if successful."""
         logger.info(f"load_stl (pygfx): Loading {file_path}")
 
         if not self._initialized or self._scene is None:
@@ -197,40 +224,117 @@ class STLViewerWidget(QWidget):
                 return False
 
         file_ext = file_path.lower()
-        supported = ('.stl', '.obj', '.ply')
+        supported = ('.stl', '.obj', '.ply', '.step', '.stp', '.3dm', '.iges', '.igs')
         if not any(file_ext.endswith(ext) for ext in supported):
-            logger.warning(f"load_stl (pygfx): Only STL/OBJ/PLY supported, got {file_ext}")
+            logger.warning(f"load_stl (pygfx): Unsupported format, got {file_ext}")
             return False
 
         try:
             import pygfx as gfx
             from pygfx.geometries import geometry_from_trimesh
             import trimesh
+            import pyvista as pv
 
             if self._mesh_obj is not None:
                 self._scene.remove(self._mesh_obj)
                 self._mesh_obj = None
 
-            # Load with trimesh (same as PyVista: compute normals for smooth shading)
-            mesh_tri = trimesh.load(file_path, force='mesh')
+            mesh_tri = None
+            pv_mesh = None
+
+            # STEP
+            if file_ext.endswith('.step') or file_ext.endswith('.stp'):
+                logger.info("load_stl (pygfx): Loading STEP with StepLoader...")
+                from core.step_loader import StepLoader
+                pv_mesh = StepLoader.load_step(file_path)
+                if pv_mesh is None or pv_mesh.n_points == 0:
+                    raise ValueError("STEP loader returned empty mesh")
+                mesh_tri = _pyvista_to_trimesh(pv_mesh)
+            # 3DM
+            elif file_ext.endswith('.3dm'):
+                logger.info("load_stl (pygfx): Loading 3DM with Rhino3dmLoader...")
+                from core.rhino3dm_loader import Rhino3dmLoader
+                pv_mesh = Rhino3dmLoader.load_3dm(file_path)
+                if pv_mesh is None or pv_mesh.n_points == 0:
+                    raise ValueError("3DM loader returned empty mesh")
+                mesh_tri = _pyvista_to_trimesh(pv_mesh)
+            # IGES
+            elif file_ext.endswith('.iges') or file_ext.endswith('.igs'):
+                logger.info("load_stl (pygfx): Loading IGES with IgesLoader...")
+                from core.iges_loader import IgesLoader
+                pv_mesh = IgesLoader.load_iges(file_path)
+                if pv_mesh is None or pv_mesh.n_points == 0:
+                    raise ValueError("IGES loader returned empty mesh")
+                mesh_tri = _pyvista_to_trimesh(pv_mesh)
+            # OBJ: try trimesh first, fallback to PyVista/meshio/ObjLoader
+            elif file_ext.endswith('.obj'):
+                mesh_tri = None
+                try:
+                    mesh_tri = trimesh.load(file_path, force='mesh')
+                except Exception:
+                    pass
+                if mesh_tri is None or (isinstance(mesh_tri, trimesh.Trimesh) and len(mesh_tri.vertices) == 0):
+                    try:
+                        pv_mesh = pv.read(file_path)
+                    except Exception:
+                        try:
+                            import meshio
+                            meshio_mesh = meshio.read(file_path)
+                            pts = meshio_mesh.points
+                            cells = None
+                            for cb in meshio_mesh.cells:
+                                if cb.type == "triangle":
+                                    cells = cb.data
+                                    break
+                            if cells is None and meshio_mesh.cells:
+                                cells = meshio_mesh.cells[0].data
+                            if cells is not None and len(pts) > 0:
+                                n_verts = cells.shape[1] if cells.ndim == 2 else 3
+                                cells_flat = np.column_stack([np.full(len(cells), n_verts), cells]).ravel().astype(np.int32)
+                                pv_mesh = pv.PolyData(pts, cells_flat).triangulate()
+                            else:
+                                raise ValueError("No cells")
+                        except Exception:
+                            from core.obj_loader import ObjLoader
+                            pv_mesh = ObjLoader.load_obj(file_path)
+                    if pv_mesh is not None and pv_mesh.n_points > 0:
+                        mesh_tri = _pyvista_to_trimesh(pv_mesh)
+                if mesh_tri is None or (isinstance(mesh_tri, trimesh.Trimesh) and len(mesh_tri.vertices) == 0):
+                    raise ValueError("OBJ file could not be loaded")
+                if pv_mesh is None:
+                    pv_mesh = _trimesh_to_pyvista(mesh_tri)
+            # STL, PLY: trimesh
+            else:
+                mesh_tri = trimesh.load(file_path, force='mesh')
+                if mesh_tri is None:
+                    raise ValueError("No mesh in file")
+                pv_mesh = _trimesh_to_pyvista(mesh_tri)
+
+            # Normalize mesh_tri (Scene -> single Trimesh)
             if isinstance(mesh_tri, trimesh.Scene):
                 all_meshes = [g for g in mesh_tri.geometry.values() if isinstance(g, trimesh.Trimesh)]
                 if not all_meshes:
                     raise ValueError("No meshes in file")
                 mesh_tri = trimesh.util.concatenate(all_meshes) if len(all_meshes) > 1 else all_meshes[0]
-            if not isinstance(mesh_tri, trimesh.Trimesh):
+            if not isinstance(mesh_tri, trimesh.Trimesh) or len(mesh_tri.vertices) == 0:
                 raise ValueError("No mesh in file")
 
-            # Compute vertex normals for smooth shading (PyVista: compute_normals point_normals=True)
+            # Compute vertex normals for smooth shading
             try:
                 mesh_tri.fix_normals()
             except Exception:
                 pass
 
-            # PyVista-equivalent material (lightblue, soft specular). pygfx uses color, specular, shininess.
+            # Ensure PyVista for MeshCalculator
+            if pv_mesh is None:
+                pv_mesh = _trimesh_to_pyvista(mesh_tri)
+            if pv_mesh is None:
+                raise ValueError("Could not convert mesh for dimensions/volume calculation")
+
+            # PyVista-equivalent material (lightblue, soft specular)
             material = gfx.MeshPhongMaterial(
                 color="#add8e6",
-                specular="#333333",  # Dim specular (~0.2) for softer highlights
+                specular="#333333",
                 shininess=20,
             )
             geometry = geometry_from_trimesh(mesh_tri)
@@ -239,10 +343,6 @@ class STLViewerWidget(QWidget):
             self._scene.add(self._mesh_obj)
             self.set_render_mode(self._render_mode)
 
-            # Convert to PyVista for MeshCalculator compatibility
-            pv_mesh = _trimesh_to_pyvista(mesh_tri)
-            if pv_mesh is None:
-                raise ValueError("Could not convert mesh for dimensions/volume calculation")
             self.current_mesh = pv_mesh
             self._model_loaded = True
             self._show_overlay(False)
@@ -325,6 +425,31 @@ class STLViewerWidget(QWidget):
             )
         if self._canvas:
             self._canvas.request_draw()
+
+    def set_background_color(self, color):
+        """Set 3D viewer background color (e.g. '#ffffff' light, '#1a1a2e' dark)."""
+        if not self._initialized or not hasattr(self, '_scene') or self._scene is None:
+            return
+        try:
+            import pygfx as gfx
+            if getattr(self, '_background', None) is not None:
+                self._scene.remove(self._background)
+            self._background = gfx.Background.from_color(color)
+            self._scene.add(self._background)
+            if self._canvas:
+                self._canvas.request_draw()
+            # Update drop overlay when visible (no model loaded)
+            if not self._model_loaded and hasattr(self, 'drop_overlay'):
+                self.drop_overlay.setStyleSheet(f"DropZoneOverlay {{ background-color: {color}; }}")
+                is_dark = color.lower() == '#1a1a2e'
+                primary = '#e2e8f0' if is_dark else '#1a1a2e'
+                secondary = '#94a3b8' if is_dark else '#4a5568'
+                helper = '#64748b' if is_dark else '#a0aec0'
+                self.drop_overlay.primary_label.setStyleSheet(f"QLabel {{ font-size: 18px; font-weight: 600; color: {primary}; background: transparent; }}")
+                self.drop_overlay.secondary_label.setStyleSheet(f"QLabel {{ font-size: 14px; font-weight: 400; color: {secondary}; background: transparent; }}")
+                self.drop_overlay.helper_label.setStyleSheet(f"QLabel {{ font-size: 11px; font-weight: 400; color: {helper}; background: transparent; margin-top: 8px; }}")
+        except Exception as e:
+            logger.warning(f"set_background_color (pygfx): {e}")
 
     def clear_viewer(self):
         """Clear the 3D viewer."""
