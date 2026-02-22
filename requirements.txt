@@ -13,6 +13,7 @@ vtk>=9.0.0,<9.6.0
 pygfx
 wgpu
 trimesh
+rtree  # Required for trimesh ray casting (annotation mode picking)
 rendercanvas
 scipy>=1.10.0
 # aspose-3d>=24.0.0  # Optional: PDF 3D export. Not needed for STL loading. Uncomment if required.

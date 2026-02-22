@@ -278,45 +278,44 @@ class STLViewerWindow(QMainWindow):
         self.ruler_toolbar.exit_ruler.connect(self._exit_ruler_mode)
         self.ruler_toolbar.unit_changed.connect(self._ruler_unit_changed)
     
-    def _clear_current_model(self):
-        """Clear the current model from the viewer."""
+    def _clear_current_model(self, skip_confirmation=False):
+        """Clear the current model from the viewer.
+        If skip_confirmation is True, skip the unsaved-annotations warning (caller already confirmed).
+        """
         logger.info("_clear_current_model: Clearing current model...")
         
-        # Check if there are unsaved annotations
-        annotations = self.annotation_panel.get_annotations()
-        if annotations:
-            if not self._annotations_exported:
-                # Warn user about unsaved annotations
-                reply = QMessageBox.warning(
-                    self,
-                    "Unsaved Annotations",
-                    f"You have {len(annotations)} annotation(s) that have not been exported.\n\n"
-                    "Would you like to export them as .ecto before clearing?\n\n"
-                    "• Click 'Yes' to export first\n"
-                    "• Click 'No' to clear without exporting\n"
-                    "• Click 'Cancel' to go back",
-                    QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
-                    QMessageBox.Yes
-                )
-                
-                if reply == QMessageBox.Yes:
-                    # Trigger export
-                    self.sidebar_panel.export_as_ecto()
-                    return  # Don't clear yet, user will export first
-                elif reply == QMessageBox.Cancel:
-                    return  # User cancelled, don't clear
-                # If No, continue with clearing
-            else:
-                # Annotations were exported, just confirm clearing
-                reply = QMessageBox.question(
-                    self,
-                    "Clear Model",
-                    f"You have {len(annotations)} annotation(s). Are you sure you want to clear everything?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No
-                )
-                if reply == QMessageBox.No:
-                    return
+        if not skip_confirmation:
+            # Check if there are unsaved annotations
+            annotations = self.annotation_panel.get_annotations()
+            if annotations:
+                if not self._annotations_exported:
+                    # Warn user about unsaved annotations
+                    reply = QMessageBox.warning(
+                        self,
+                        "Unsaved Annotations",
+                        f"You have {len(annotations)} annotation(s) that have not been exported.\n\n"
+                        "Would you like to export them as .ecto before clearing?\n\n"
+                        "• Click 'Yes' to export first\n"
+                        "• Click 'No' to clear without exporting\n"
+                        "• Click 'Cancel' to go back",
+                        QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                        QMessageBox.Yes
+                    )
+                    if reply == QMessageBox.Yes:
+                        self.sidebar_panel.export_as_ecto()
+                        return
+                    elif reply == QMessageBox.Cancel:
+                        return
+                else:
+                    reply = QMessageBox.question(
+                        self,
+                        "Clear Model",
+                        f"You have {len(annotations)} annotation(s). Are you sure you want to clear everything?",
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.No
+                    )
+                    if reply == QMessageBox.No:
+                        return
         
         # Clear the viewer
         if hasattr(self.viewer_widget, 'clear_viewer'):
@@ -333,6 +332,12 @@ class STLViewerWindow(QMainWindow):
         
         # Clear all annotations from panel and viewer
         self._clear_all_annotations()
+        
+        # Clear ruler measurements and exit ruler mode if active
+        if hasattr(self.viewer_widget, 'clear_measurements'):
+            self.viewer_widget.clear_measurements()
+        if self.toolbar.ruler_mode_enabled:
+            self._exit_ruler_mode()
         
         # Hide annotation panel if visible
         if self.annotation_panel.isVisible():
@@ -633,7 +638,7 @@ class STLViewerWindow(QMainWindow):
         self.annotation_panel.focus_annotation.connect(self._on_focus_annotation)
         self.annotation_panel.annotation_hovered.connect(self._on_annotation_hovered)
         self.annotation_panel.exit_annotation_mode.connect(self._exit_annotation_mode)
-        self.annotation_panel.clear_all_requested.connect(self._clear_all_annotations)
+        self.annotation_panel.clear_all_requested.connect(self._on_clear_all_requested)
     
     def _toggle_annotation_mode(self):
         """Toggle annotation mode."""
@@ -648,6 +653,9 @@ class STLViewerWindow(QMainWindow):
                     # Exit ruler mode if active
                     if self.toolbar.ruler_mode_enabled:
                         self._exit_ruler_mode()
+                    # Reframe object after layout settles (fixes object shrinking when panel opens)
+                    if hasattr(self.viewer_widget, 'reframe_for_viewport'):
+                        QTimer.singleShot(50, self.viewer_widget.reframe_for_viewport)
                     logger.info("_toggle_annotation_mode: Annotation mode enabled")
                 else:
                     # Failed to enable, reset toolbar state
@@ -662,6 +670,9 @@ class STLViewerWindow(QMainWindow):
         if hasattr(self.viewer_widget, 'disable_annotation_mode'):
             self.viewer_widget.disable_annotation_mode()
         self.annotation_panel.hide()
+        # Reframe object after layout settles (fixes object size when panel closes)
+        if hasattr(self.viewer_widget, 'reframe_for_viewport'):
+            QTimer.singleShot(50, self.viewer_widget.reframe_for_viewport)
         self.toolbar.reset_annotation_state()
         logger.info("_exit_annotation_mode: Annotation mode disabled, annotations kept")
     
@@ -825,8 +836,41 @@ class STLViewerWindow(QMainWindow):
             if hasattr(self.viewer_widget, 'add_annotation_marker'):
                 self.viewer_widget.add_annotation_marker(ann.id, ann.point, color, display_date=str(display_number))
     
+    def _on_clear_all_requested(self):
+        """Handle Clear All from annotation panel - show warning if unsaved annotations, then clear everything."""
+        annotations = self.annotation_panel.get_annotations()
+        if annotations:
+            if not self._annotations_exported:
+                reply = QMessageBox.warning(
+                    self,
+                    "Unsaved Annotations",
+                    f"You have {len(annotations)} annotation(s) that have not been exported.\n\n"
+                    "Would you like to export them as .ecto before clearing?\n\n"
+                    "• Click 'Yes' to export first\n"
+                    "• Click 'No' to clear without exporting\n"
+                    "• Click 'Cancel' to go back",
+                    QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                    QMessageBox.Yes
+                )
+                if reply == QMessageBox.Yes:
+                    self.sidebar_panel.export_as_ecto()
+                    return
+                elif reply == QMessageBox.Cancel:
+                    return
+            else:
+                reply = QMessageBox.question(
+                    self,
+                    "Clear All",
+                    f"You have {len(annotations)} annotation(s). Are you sure you want to clear everything?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                if reply == QMessageBox.No:
+                    return
+        self._clear_current_model(skip_confirmation=True)
+
     def _clear_all_annotations(self):
-        """Clear all annotations."""
+        """Clear all annotations (no warning - used after user confirms or when clearing programmatically)."""
         if hasattr(self.viewer_widget, 'clear_all_annotation_markers'):
             self.viewer_widget.clear_all_annotation_markers()
         self.annotation_panel.clear_all()

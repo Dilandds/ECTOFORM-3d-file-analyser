@@ -31,6 +31,8 @@ splash_image_paths = [
     ('assets/splash.jpg', 'assets'),
     ('assets/logo.png', 'assets'),
     ('assets/logo.jpg', 'assets'),
+    ('assets/annotation_icon.png', 'assets'),
+    ('assets/xyz_gizmo.png', 'assets'),
 ]
 
 for src_path, dst_path in splash_image_paths:

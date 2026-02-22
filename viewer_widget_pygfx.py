@@ -6,12 +6,99 @@ Settings match PyVista viewer for consistent default view and rendering.
 import sys
 import os
 import logging
+from pathlib import Path
 import numpy as np
-from PyQt5.QtWidgets import QWidget, QStackedLayout, QGridLayout, QVBoxLayout, QLabel, QFrame
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, QEvent
+from PyQt5.QtWidgets import QWidget, QStackedLayout, QGridLayout, QVBoxLayout, QLabel, QFrame, QSizePolicy
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, QEvent, QPoint, QPointF, QRectF
+from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygonF, QPixmap
 from ui.drop_zone_overlay import DropZoneOverlay
 
 logger = logging.getLogger(__name__)
+
+
+def _get_xyz_gizmo_path():
+    """Return path to xyz_gizmo.png (handles PyInstaller frozen bundle)."""
+    if getattr(sys, 'frozen', False):
+        base = Path(sys._MEIPASS)
+    else:
+        base = Path(__file__).resolve().parent
+    return base / 'assets' / 'xyz_gizmo.png'
+
+
+class OrientationGizmoWidget(QWidget):
+    """Interactive XYZ axes gizmo for rotating the 3D view in annotation mode.
+    Click and drag to rotate the camera. Uses XYZ axes image or draws fallback.
+    """
+    rotation_delta = pyqtSignal(float, float)  # dx, dy in pixels
+
+    SIZE = 72
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(self.SIZE, self.SIZE)
+        self.setCursor(Qt.OpenHandCursor)
+        self.setToolTip("Drag to rotate view")
+        self._drag_start = None
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        path = _get_xyz_gizmo_path()
+        self._gizmo_pixmap = QPixmap(str(path)) if path.exists() else None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_start = event.pos()
+            self.setCursor(Qt.ClosedHandCursor)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._drag_start is not None and event.buttons() & Qt.LeftButton:
+            delta = event.pos() - self._drag_start
+            self.rotation_delta.emit(float(delta.x()), float(delta.y()))
+            self._drag_start = event.pos()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_start = None
+            self.setCursor(Qt.OpenHandCursor)
+        super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        w, h = self.width(), self.height()
+        if self._gizmo_pixmap and not self._gizmo_pixmap.isNull():
+            scaled = self._gizmo_pixmap.scaled(
+                w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            x = (w - scaled.width()) // 2
+            y = (h - scaled.height()) // 2
+            painter.drawPixmap(x, y, scaled)
+        else:
+            self._paint_xyz_fallback(painter, w, h)
+        painter.end()
+
+    def _paint_xyz_fallback(self, painter, w, h):
+        """Draw XYZ axes when image is not available."""
+        cx, cy = w / 2, h / 2
+        s = min(w, h) * 0.32
+        def pt(x, y):
+            return QPointF(x, y)
+        # X axis - red, left
+        painter.setPen(QPen(QColor("#E53935"), 2.5))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawLine(pt(cx, cy), pt(cx - s, cy + s * 0.3))
+        # Y axis - green, down-right
+        painter.setPen(QPen(QColor("#43A047"), 2.5))
+        painter.drawLine(pt(cx, cy), pt(cx + s * 0.5, cy + s * 0.7))
+        # Z axis - blue, up
+        painter.setPen(QPen(QColor("#1E88E5"), 2.5))
+        painter.drawLine(pt(cx, cy), pt(cx, cy - s))
+        # Center circle (orange)
+        painter.setBrush(QBrush(QColor("#FF9800")))
+        painter.setPen(QPen(QColor("#FFFFFF"), 1.5))
+        painter.drawEllipse(QRectF(cx - 4, cy - 4, 8, 8))
 
 
 def _trimesh_to_pyvista(tm):
@@ -134,20 +221,27 @@ class STLViewerWidget(QWidget):
         self._annotation_event_filter_installed = False
         self._annotation_trimesh = None  # trimesh.Trimesh for raycasting
 
-        # Object control label overlay (shown above gizmo in annotation mode)
-        self._object_control_overlay = QFrame()
-        self._object_control_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self._object_control_overlay.setStyleSheet("background: transparent;")
+        # Object control overlay (gizmo + label, shown in annotation mode)
+        self._object_control_overlay = QFrame(self.viewer_container)
+        self._object_control_overlay.setStyleSheet(
+            "background-color: rgba(255,255,255,0.85); border-radius: 6px; border: 1px solid #ddd;"
+        )
         overlay_layout = QVBoxLayout(self._object_control_overlay)
-        overlay_layout.setContentsMargins(0, 0, 24, 85)
-        overlay_layout.setAlignment(Qt.AlignRight | Qt.AlignBottom)
+        overlay_layout.setContentsMargins(6, 6, 6, 6)
+        overlay_layout.setSpacing(4)
         self._object_control_label = QLabel("3D control")
         self._object_control_label.setStyleSheet(
             "color: #000000; font-size: 10px; font-weight: 500; background: transparent;"
         )
-        overlay_layout.addWidget(self._object_control_label, 0, Qt.AlignRight)
+        overlay_layout.addWidget(self._object_control_label, 0, Qt.AlignCenter)
+        self._orientation_gizmo = OrientationGizmoWidget(self._object_control_overlay)
+        overlay_layout.addWidget(self._orientation_gizmo, 0, Qt.AlignCenter)
         self._object_control_overlay.hide()
-        self.layout.addWidget(self._object_control_overlay)
+        self._object_control_overlay.setFixedSize(
+            OrientationGizmoWidget.SIZE + 20,
+            OrientationGizmoWidget.SIZE + 36
+        )
+        self._orientation_gizmo.rotation_delta.connect(self._on_gizmo_rotate)
 
         _debug_print("STLViewerWidget (pygfx): Basic init complete")
 
@@ -158,15 +252,12 @@ class STLViewerWidget(QWidget):
             QTimer.singleShot(100, self._init_pygfx)
 
     def resizeEvent(self, event):
-        """Update camera aspect on resize so framing stays correct."""
+        """Update camera aspect and reframe on resize (e.g. when annotation panel opens)."""
         super().resizeEvent(event)
-        if self._initialized and self._camera is not None and self._canvas is not None:
-            try:
-                cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
-                if cw > 0 and ch > 0 and hasattr(self._camera, 'aspect'):
-                    self._camera.aspect = cw / ch
-            except Exception:
-                pass
+        if self._initialized and self._camera is not None and self._canvas is not None and self._mesh_obj is not None:
+            from PyQt5.QtCore import QTimer
+            # Defer reframe so layout has settled (fixes object shrinking when viewport changes)
+            QTimer.singleShot(50, self.reframe_for_viewport)
 
     def _init_pygfx(self):
         if self._initialized:
@@ -186,6 +277,11 @@ class STLViewerWidget(QWidget):
 
             self._canvas = QRenderWidget(parent=self.viewer_container)
             self.viewer_layout.addWidget(self._canvas)
+            # Overlay for 3D control gizmo (annotation mode) - bottom-right corner
+            self.viewer_layout.addWidget(
+                self._object_control_overlay, 0, 0, 1, 1,
+                Qt.AlignRight | Qt.AlignBottom
+            )
 
             self._renderer = gfx.WgpuRenderer(self._canvas)
             # SSAA for sharp edges (PyVista uses FXAA/SSAA)
@@ -367,9 +463,9 @@ class STLViewerWidget(QWidget):
             if pv_mesh is None:
                 raise ValueError("Could not convert mesh for dimensions/volume calculation")
 
-            # PyVista-equivalent material (lightblue, soft specular)
+            # PyVista-equivalent material (light blue per spec: RGB 0.68, 0.85, 0.90 = #ADD9E6)
             material = gfx.MeshPhongMaterial(
-                color="#add8e6",
+                color="#ADD9E6",
                 specular="#333333",
                 shininess=20,
             )
@@ -459,7 +555,7 @@ class STLViewerWidget(QWidget):
             )
         else:  # solid
             self._mesh_obj.material = gfx.MeshPhongMaterial(
-                color="#add8e6", specular="#333333", shininess=20
+                color="#ADD9E6", specular="#333333", shininess=20
             )
         if self._canvas:
             self._canvas.request_draw()
@@ -494,6 +590,27 @@ class STLViewerWidget(QWidget):
             cw, ch = max(1, self.width()), max(1, self.height())
         if hasattr(self._camera, 'aspect'):
             self._camera.aspect = cw / ch
+
+    def reframe_for_viewport(self):
+        """Reframe the object for the current viewport size. Call when layout changes (e.g. annotation panel show/hide)."""
+        if not self._initialized or self._camera is None or self._mesh_obj is None:
+            return
+        try:
+            self._safe_set_aspect()
+            center, _ = self._get_view_center_and_distance()
+            cam_pos = np.array(self._camera.local.position)
+            view_dir = np.array(center) - cam_pos
+            n = np.linalg.norm(view_dir)
+            if n > 1e-12:
+                view_dir = tuple(view_dir / n)
+            else:
+                view_dir = (1.2, -0.8, -1.0)
+            up = tuple(self._camera.local.up)
+            self._camera.show_object(self._mesh_obj, view_dir=view_dir, scale=1.8, up=up)
+            if self._canvas:
+                self._canvas.request_draw()
+        except Exception as e:
+            logger.debug(f"reframe_for_viewport: {e}")
 
     def _set_view(self, view_dir, up=(0, 1, 0)):
         """Set camera to a specific view direction."""
@@ -995,18 +1112,6 @@ class STLViewerWidget(QWidget):
         if len(self.measurement_points) == 1:
             point = self._maybe_snap_to_axis(self.measurement_points[0], point)
         self.measurement_points.append(point)
-        import pygfx as gfx
-        sphere_radius = self._get_measurement_marker_size()
-        try:
-            geom = gfx.sphere_geometry(sphere_radius, 16, 12)
-            mat = gfx.MeshPhongMaterial(color="#FF69B4", depth_test=False, depth_write=False)
-            mat.render_queue = 4000  # overlay - always on top
-            sphere = gfx.Mesh(geom, mat)
-            sphere.local.position = point
-            self._scene.add(sphere)
-            self.measurement_actors.append(sphere)
-        except Exception as e:
-            logger.warning(f"_on_point_picked: Could not add marker: {e}")
         if len(self.measurement_points) == 2:
             self._clear_preview_line()
             distance = self._calculate_distance(self.measurement_points[0], self.measurement_points[1])
@@ -1113,12 +1218,12 @@ class STLViewerWidget(QWidget):
                 m.depth_write = False
                 m.render_queue = 4000
                 return gfx.Mesh(g, m)
-            # Arrow at p1 pointing toward p2
-            arrow1 = _make_arrow_triangle(p1, dir_unit)
+            # Arrow at p1 pointing outward (away from p2)
+            arrow1 = _make_arrow_triangle(p1, -dir_unit)
             self._scene.add(arrow1)
             self.measurement_actors.append(arrow1)
-            # Arrow at p2 pointing toward p1
-            arrow2 = _make_arrow_triangle(p2, -dir_unit)
+            # Arrow at p2 pointing outward (away from p1)
+            arrow2 = _make_arrow_triangle(p2, dir_unit)
             self._scene.add(arrow2)
             self.measurement_actors.append(arrow2)
             # Label at midpoint, offset perpendicular to the line so it's readable
@@ -1148,6 +1253,36 @@ class STLViewerWidget(QWidget):
             converted = distance * conversion.get(unit, 1.0)
             suffix = unit_labels.get(unit, "mm")
             label_text = f"{converted:.4f} {suffix}" if converted < 1 else (f"{converted:.2f} {suffix}" if converted < 100 else f"{converted:.1f} {suffix}")
+            # Background plane behind label (grey #666666, rounded look via size)
+            try:
+                view_right, view_up = self._get_camera_view_axes()
+            except Exception:
+                view_right = np.array([1, 0, 0])
+                view_up = np.array([0, 1, 0])
+            b = self.current_mesh.bounds if self.current_mesh else None
+            max_dim = max(b[1] - b[0], b[3] - b[2], b[5] - b[4]) if b else length
+            bg_w = max_dim * 0.08
+            bg_h = max_dim * 0.03
+            normal = np.cross(view_right, view_up)
+            n = np.linalg.norm(normal)
+            if n > 1e-12:
+                normal = normal / n
+            else:
+                normal = np.array([0, 0, 1])
+            m = np.eye(4, dtype=np.float32)
+            m[:3, 0] = view_right * bg_w
+            m[:3, 1] = view_up * bg_h
+            m[:3, 2] = normal
+            m[:3, 3] = np.array(label_pos, dtype=np.float32)
+            bg_geom = gfx.plane_geometry(1, 1)
+            bg_mat = gfx.MeshBasicMaterial(color="#666666", side="both")
+            bg_mat.depth_test = False
+            bg_mat.depth_write = False
+            bg_mat.render_queue = 3999
+            bg_plane = gfx.Mesh(bg_geom, bg_mat)
+            bg_plane.local.matrix = m
+            self._scene.add(bg_plane)
+            self.measurement_actors.append(bg_plane)
             lbl_mat = gfx.TextMaterial(color="#000000")
             lbl_mat.depth_test = False
             lbl_mat.depth_write = False
@@ -1232,7 +1367,8 @@ class STLViewerWidget(QWidget):
             if app is not None:
                 app.installEventFilter(self)
             self._ruler_event_filter_installed = True
-        # Switch to orthographic camera
+        # Switch to orthographic camera, always starting with Front view
+        self._ruler_current_view = "front"
         self._switch_to_orthographic_camera()
         # Ensure canvas has focus so wheel events reach it for zoom
         if self._canvas:
@@ -1271,7 +1407,6 @@ class STLViewerWidget(QWidget):
             cw, ch = max(1, self.width()), max(1, self.height())
         try:
             self._camera_before_ruler = self._camera
-            center, dist = self._get_view_center_and_distance()
             # OrthographicCamera width/height are in world units; size view to fit mesh
             max_dim = max(
                 self.current_mesh.bounds[1] - self.current_mesh.bounds[0],
@@ -1282,7 +1417,8 @@ class STLViewerWidget(QWidget):
             aspect = cw / ch if ch > 0 else 1
             ortho = gfx.OrthographicCamera(max_dim * aspect, max_dim)
             ortho.maintain_aspect = True
-            ortho.show_object(self._mesh_obj, view_dir=tuple(np.array(center) - np.array(self._camera.local.position)), scale=1.8, up=(0, 1, 0))
+            # Always start ruler mode with Front view (view_dir +X, Y up)
+            ortho.show_object(self._mesh_obj, view_dir=(1, 0, 0), scale=1.8, up=(0, 1, 0))
             self._camera = ortho
             self._controller.camera = ortho
             if self._canvas:
@@ -1344,6 +1480,24 @@ class STLViewerWidget(QWidget):
 
         logger.info("enable_annotation_mode (pygfx): Annotation mode enabled")
         return True
+
+    def _on_gizmo_rotate(self, dx: float, dy: float):
+        """Handle drag on orientation gizmo - rotate the camera."""
+        if self._controller is None or self._canvas is None:
+            return
+        try:
+            # Convert pixel delta to radians (match TrackballController sensitivity)
+            scale = 0.005
+            delta = (-dx * scale, -dy * scale)
+            try:
+                w, h = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self._canvas.width(), self._canvas.height())
+            except Exception:
+                w, h = self._canvas.width(), self._canvas.height()
+            rect = (0, 0, max(1, w), max(1, h))
+            self._controller.rotate(delta, rect)
+            self._canvas.request_draw()
+        except Exception as e:
+            logger.warning(f"_on_gizmo_rotate: {e}")
 
     def disable_annotation_mode(self):
         """Disable annotation mode."""

@@ -32,6 +32,7 @@ splash_image_paths = [
     ('assets/logo.png', 'assets'),
     ('assets/logo.jpg', 'assets'),
     ('assets/annotation_icon.png', 'assets'),
+    ('assets/xyz_gizmo.png', 'assets'),
     ('assets/icon.ico', 'assets'),
 ]
 

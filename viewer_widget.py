@@ -995,6 +995,7 @@ class STLViewerWidget(QWidget):
         if self._install_ruler_click_picking():
             try:
                 self.plotter.enable_parallel_projection()
+                self.plotter.view_yz()  # Start with Front view
                 logger.info("enable_ruler_mode: Orthographic projection enabled")
             except Exception as e:
                 logger.warning(f"enable_ruler_mode: Could not enable orthographic projection: {e}")
@@ -1013,6 +1014,7 @@ class STLViewerWidget(QWidget):
             )
             logger.info("enable_ruler_mode: Surface point picking enabled (fallback)")
             self.plotter.enable_parallel_projection()
+            self.plotter.view_yz()  # Start with Front view
             logger.info("enable_ruler_mode: Orthographic projection enabled")
             return True
         except AttributeError:

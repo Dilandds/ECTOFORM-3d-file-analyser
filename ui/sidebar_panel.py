@@ -389,7 +389,7 @@ class SidebarPanel(QWidget):
                 background: transparent;
                 border: none;
                 text-align: left;
-                padding: 0;
+                padding: 8px 0;
             }}
             QPushButton#adjustWeightHeader:hover {{
                 background: transparent;
@@ -420,7 +420,10 @@ class SidebarPanel(QWidget):
         title_font.setPointSize(14)
         title_font.setBold(True)
         title_label.setFont(title_font)
-        title_label.setStyleSheet(f"color: {default_theme.text_title}; margin-bottom: 4px;")
+        title_label.setStyleSheet(f"color: {default_theme.text_title}; padding: 2px 0;")
+        # Ensure full title is visible (avoids truncation on narrow sidebars)
+        fm = title_label.fontMetrics()
+        title_label.setMinimumWidth(fm.horizontalAdvance("Adjust to Target Weight") + 8)
         
         icon_label = QLabel("⚙")
         icon_label.setStyleSheet(f"color: {default_theme.icon_blue}; font-size: 16px;")
