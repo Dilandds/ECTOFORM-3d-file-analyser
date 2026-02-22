@@ -884,8 +884,23 @@ class STLViewerWidget(QWidget):
         return world_pos
 
     def _get_camera_view_axes(self):
-        """Return (view_right, view_up) in world space for screen-space snapping."""
+        """Return (view_right, view_up) in world space for screen-space snapping.
+        Uses camera world matrix for reliable axes in Front/Left/Rear/Right ortho views.
+        """
         cam = self._camera
+        try:
+            # Use world matrix: columns 0,1 = right, up in world space
+            w = np.array(cam.world.matrix)
+            if w.shape[0] >= 3 and w.shape[1] >= 2:
+                view_right = w[:3, 0].copy()
+                view_up = w[:3, 1].copy()
+                rn = np.linalg.norm(view_right)
+                un = np.linalg.norm(view_up)
+                if rn > 1e-8 and un > 1e-8:
+                    return view_right / rn, view_up / un
+        except Exception:
+            pass
+        # Fallback: cross product
         view_up = np.array(cam.local.up)
         center = np.array(self._get_view_center_and_distance()[0])
         pos = np.array(cam.local.position)
@@ -900,8 +915,11 @@ class STLViewerWidget(QWidget):
         view_up = view_up / (np.linalg.norm(view_up) + 1e-12)
         return view_right, view_up
 
-    def _maybe_snap_to_axis(self, point1, point2, threshold_deg=5):
-        """Snap to horizontal or vertical only when line is very close to perpendicular axes."""
+    def _maybe_snap_to_axis(self, point1, point2, threshold_deg=3):
+        """Snap to horizontal or vertical only when line is very close to perpendicular axes.
+        Otherwise allow lines at any angle (diagonal). Threshold 3° = snap only when within
+        3° of 0° (horizontal) or 90° (vertical); 3°–87° draws freely.
+        """
         import math
         try:
             view_right, view_up = self._get_camera_view_axes()
@@ -909,16 +927,15 @@ class STLViewerWidget(QWidget):
             delta = p2 - p1
             dx_screen = np.dot(delta, view_right)
             dy_screen = np.dot(delta, view_up)
+            # Avoid snapping when delta is too small
             if abs(dx_screen) < 1e-12 and abs(dy_screen) < 1e-12:
                 return point2
             angle_deg = math.degrees(math.atan2(abs(dy_screen), abs(dx_screen)))
             # Snap only when very close to 0° (horizontal) or 90° (vertical)
             if angle_deg < threshold_deg:
-                # Near horizontal - snap to horizontal
                 snapped = p1 + view_right * dx_screen
                 return tuple(snapped)
             elif angle_deg > (90 - threshold_deg):
-                # Near vertical - snap to vertical
                 snapped = p1 + view_up * dy_screen
                 return tuple(snapped)
             return point2
