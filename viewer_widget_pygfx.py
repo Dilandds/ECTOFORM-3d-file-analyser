@@ -860,7 +860,7 @@ class STLViewerWidget(QWidget):
             logger.warning(f"_handle_ruler_wheel: {e}")
 
     def _on_ruler_click(self, x, y):
-        """Handle left click in ruler mode: unproject and add point."""
+        """Handle left click in ruler mode: unproject to focal plane (between user and object)."""
         if not self.ruler_mode:
             return
         world_pos = self._screen_to_world_focal_plane(x, y)
@@ -876,29 +876,12 @@ class STLViewerWidget(QWidget):
         world_pos = self._screen_to_world_focal_plane(x, y)
         if world_pos is None:
             return
-        nearest = self._get_nearest_mesh_point(world_pos)
-        snapped = nearest if nearest != world_pos else self._maybe_snap_to_axis(self.measurement_points[0], world_pos)
+        snapped = self._maybe_snap_to_axis(self.measurement_points[0], world_pos)
         self._update_preview_line(self.measurement_points[0], snapped)
 
     def _get_nearest_mesh_point(self, world_pos, max_distance_ratio=0.02):
-        """Return nearest mesh vertex to world_pos if within threshold, else world_pos."""
-        if self.current_mesh is None:
-            return world_pos
-        try:
-            pts = np.asarray(self.current_mesh.points)
-            if pts is None or len(pts) == 0:
-                return world_pos
-            p = np.array(world_pos)
-            b = self.current_mesh.bounds
-            max_dim = max(b[1] - b[0], b[3] - b[2], b[5] - b[4])
-            threshold = max_dim * max_distance_ratio
-            dists = np.linalg.norm(pts - p, axis=1)
-            idx = np.argmin(dists)
-            if dists[idx] <= threshold:
-                return tuple(pts[idx])
-            return world_pos
-        except Exception:
-            return world_pos
+        """Disabled - no longer snap to mesh vertices. Always return the input point."""
+        return world_pos
 
     def _get_camera_view_axes(self):
         """Return (view_right, view_up) in world space for screen-space snapping."""
@@ -1090,8 +1073,6 @@ class STLViewerWidget(QWidget):
             arrow2 = _make_arrow_triangle(p2, -dir_unit)
             self._scene.add(arrow2)
             self.measurement_actors.append(arrow2)
-            self._scene.add(cone2)
-            self.measurement_actors.append(cone2)
             # Label at midpoint, offset perpendicular to the line so it's readable
             midpoint = np.array([(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2])
             # Compute perpendicular offset in view plane
