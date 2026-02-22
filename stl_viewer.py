@@ -20,8 +20,8 @@ try:
 except ImportError:
     pass
 
-# Use pygfx by default (WebGPU, avoids Windows black screen). No env var needed for exe.
-# Fall back to PyVista if pygfx import fails.
+# Always use pygfx (WebGPU) - no env vars. Fixes Windows black screen, works in exe.
+# Fall back to PyVista only if pygfx import fails (e.g. missing wgpu/rendercanvas).
 USE_PYGFX = False
 USE_OFFSCREEN = False
 try:
@@ -29,17 +29,12 @@ try:
     USE_PYGFX = True
 except Exception as e:
     print(f"Warning: Could not import pygfx viewer: {e}, falling back to PyVista", file=sys.stderr)
-    _force_offscreen = os.environ.get('ECTOFORM_USE_OFFSCREEN', '').lower() in ('1', 'true', 'yes')
-    if _force_offscreen and sys.platform == 'win32':
+    try:
+        from viewer_widget import STLViewerWidget
+    except Exception as e2:
+        print(f"Warning: Could not import QtInteractor viewer, using offscreen fallback: {e2}", file=sys.stderr)
         from viewer_widget_offscreen import STLViewerWidgetOffscreen as STLViewerWidget
         USE_OFFSCREEN = True
-    else:
-        try:
-            from viewer_widget import STLViewerWidget
-        except Exception as e2:
-            print(f"Warning: Could not import QtInteractor viewer, using offscreen fallback: {e2}", file=sys.stderr)
-            from viewer_widget_offscreen import STLViewerWidgetOffscreen as STLViewerWidget
-            USE_OFFSCREEN = True
 
 from ui.sidebar_panel import SidebarPanel
 from ui.toolbar import ViewControlsToolbar
@@ -157,11 +152,12 @@ class STLViewerWindow(QMainWindow):
         viewer_h_layout.setSpacing(0)
         
         try:
-            # Try QtInteractor first
+            # Use pygfx (default) or PyVista/offscreen fallback - no env vars required
             if not USE_OFFSCREEN:
                 self.viewer_widget = STLViewerWidget()
-                debug_print("init_ui: 3D viewer widget (QtInteractor) created successfully")
-                logger.info("init_ui: 3D viewer widget (QtInteractor) created successfully")
+                viewer_type = "pygfx" if USE_PYGFX else "PyVista"
+                debug_print(f"init_ui: 3D viewer widget ({viewer_type}) created successfully")
+                logger.info(f"init_ui: 3D viewer widget ({viewer_type}) created successfully")
             else:
                 # Use offscreen renderer
                 from viewer_widget_offscreen import STLViewerWidgetOffscreen
@@ -496,6 +492,12 @@ class STLViewerWindow(QMainWindow):
     
     def _reset_rotation(self):
         """Reset view to default isometric rotation."""
+        if hasattr(self.viewer_widget, 'reset_view'):
+            try:
+                self.viewer_widget.reset_view()
+            except Exception as e:
+                logger.warning(f"Could not reset rotation (pygfx): {e}")
+            return
         if hasattr(self.viewer_widget, 'plotter') and self.viewer_widget.plotter is not None:
             try:
                 self.viewer_widget.plotter.reset_camera()
@@ -505,6 +507,12 @@ class STLViewerWindow(QMainWindow):
     
     def _view_front(self):
         """Set camera to front view."""
+        if hasattr(self.viewer_widget, 'view_front'):
+            try:
+                self.viewer_widget.view_front()
+            except Exception as e:
+                logger.warning(f"Could not set front view (pygfx): {e}")
+            return
         if hasattr(self.viewer_widget, 'plotter') and self.viewer_widget.plotter is not None:
             try:
                 self.viewer_widget.plotter.view_yz()
@@ -513,6 +521,12 @@ class STLViewerWindow(QMainWindow):
     
     def _view_side(self):
         """Set camera to side view."""
+        if hasattr(self.viewer_widget, 'view_side'):
+            try:
+                self.viewer_widget.view_side()
+            except Exception as e:
+                logger.warning(f"Could not set side view (pygfx): {e}")
+            return
         if hasattr(self.viewer_widget, 'plotter') and self.viewer_widget.plotter is not None:
             try:
                 self.viewer_widget.plotter.view_xz()
@@ -521,6 +535,12 @@ class STLViewerWindow(QMainWindow):
     
     def _view_top(self):
         """Set camera to top view."""
+        if hasattr(self.viewer_widget, 'view_top'):
+            try:
+                self.viewer_widget.view_top()
+            except Exception as e:
+                logger.warning(f"Could not set top view (pygfx): {e}")
+            return
         if hasattr(self.viewer_widget, 'plotter') and self.viewer_widget.plotter is not None:
             try:
                 self.viewer_widget.plotter.view_xy()

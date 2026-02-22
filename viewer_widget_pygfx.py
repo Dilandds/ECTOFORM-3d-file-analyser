@@ -428,6 +428,113 @@ class STLViewerWidget(QWidget):
         if self._canvas:
             self._canvas.request_draw()
 
+    def _get_view_center_and_distance(self):
+        """Get mesh center and camera distance for view presets. Returns (cx, cy, cz), distance."""
+        if self.current_mesh is None:
+            return (0.0, 0.0, 0.0), 5.0
+        b = self.current_mesh.bounds
+        cx = (b[0] + b[1]) / 2
+        cy = (b[2] + b[3]) / 2
+        cz = (b[4] + b[5]) / 2
+        w, h, d = b[1] - b[0], b[3] - b[2], b[5] - b[4]
+        dist = max(w, h, d, 1.0) * 1.5
+        return (float(cx), float(cy), float(cz)), float(dist)
+
+    def reset_view(self):
+        """Reset to default isometric view."""
+        if not self._initialized or self._camera is None or self._mesh_obj is None:
+            return
+        try:
+            cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
+        except Exception:
+            cw, ch = max(1, self.width()), max(1, self.height())
+        self._camera.aspect = cw / ch
+        view_dir = (1.2, -0.8, -1.0)
+        self._camera.show_object(self._mesh_obj, view_dir=view_dir, scale=1.8, up=(0, 1, 0))
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def view_front(self):
+        """Set camera to front view (looking along +X, Y up). PyVista view_yz equivalent."""
+        if not self._initialized or self._camera is None or self._mesh_obj is None:
+            return
+        try:
+            cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
+        except Exception:
+            cw, ch = max(1, self.width()), max(1, self.height())
+        self._camera.aspect = cw / ch
+        self._camera.show_object(self._mesh_obj, view_dir=(1, 0, 0), scale=1.8, up=(0, 1, 0))
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def view_side(self):
+        """Set camera to side view (looking along +Y, Z up). PyVista view_xz equivalent."""
+        if not self._initialized or self._camera is None or self._mesh_obj is None:
+            return
+        try:
+            cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
+        except Exception:
+            cw, ch = max(1, self.width()), max(1, self.height())
+        self._camera.aspect = cw / ch
+        self._camera.show_object(self._mesh_obj, view_dir=(0, 1, 0), scale=1.8, up=(0, 0, 1))
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def view_top(self):
+        """Set camera to top view (looking along +Z, Y up). PyVista view_xy equivalent."""
+        if not self._initialized or self._camera is None or self._mesh_obj is None:
+            return
+        try:
+            cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
+        except Exception:
+            cw, ch = max(1, self.width()), max(1, self.height())
+        self._camera.aspect = cw / ch
+        self._camera.show_object(self._mesh_obj, view_dir=(0, 0, 1), scale=1.8, up=(0, 1, 0))
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def view_front_ortho(self):
+        """Front orthographic view (ruler mode). Same as view_front."""
+        self.view_front()
+
+    def view_top_ortho(self):
+        """Top orthographic view (ruler mode). Same as view_top."""
+        self.view_top()
+
+    def view_left_ortho(self):
+        """Left orthographic view (camera from -X)."""
+        if not self._initialized or self._camera is None or self._mesh_obj is None:
+            return
+        try:
+            cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
+        except Exception:
+            cw, ch = max(1, self.width()), max(1, self.height())
+        self._camera.aspect = cw / ch
+        self._camera.show_object(self._mesh_obj, view_dir=(-1, 0, 0), scale=1.8, up=(0, 1, 0))
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def view_right_ortho(self):
+        """Right orthographic view (camera from +X). Same as view_front."""
+        self.view_front()
+
+    def view_bottom_ortho(self):
+        """Bottom orthographic view (camera from -Z)."""
+        if not self._initialized or self._camera is None or self._mesh_obj is None:
+            return
+        try:
+            cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
+        except Exception:
+            cw, ch = max(1, self.width()), max(1, self.height())
+        self._camera.aspect = cw / ch
+        self._camera.show_object(self._mesh_obj, view_dir=(0, 0, -1), scale=1.8, up=(0, 1, 0))
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def view_rear_ortho(self):
+        """Rear orthographic view (camera from -X)."""
+        self.view_left_ortho()
+
     def set_background_color(self, color):
         """Set 3D viewer background color (e.g. '#ffffff' light, '#1a1a2e' dark)."""
         if not self._initialized or not hasattr(self, '_scene') or self._scene is None:
@@ -494,6 +601,11 @@ class STLViewerWidget(QWidget):
         bounds = self.current_mesh.bounds  # (xmin,xmax,ymin,ymax,zmin,zmax)
         xmin, xmax, ymin, ymax, zmin, zmax = [float(v) for v in bounds]
 
+        # Dimensions in mm (mesh is in mm)
+        width = xmax - xmin
+        height = ymax - ymin
+        depth = zmax - zmin
+
         # ── 12 edges of the bounding box ──
         corners = np.array([
             [xmin, ymin, zmin], [xmax, ymin, zmin],
@@ -538,10 +650,15 @@ class STLViewerWidget(QWidget):
                 v += step
             return ticks
 
-        # ── Helper: create a text label ──
+        # ── Helper: create a text label (pygfx Text API: text=, material=, no TextGeometry) ──
         def _make_text(text, pos, font_size=10, anchor="middle-center"):
-            geom = gfx.TextGeometry(text=text, font_size=font_size, anchor=anchor, screen_space=True)
-            obj = gfx.Text(geom, gfx.TextMaterial(color="#333333"))
+            obj = gfx.Text(
+                text=str(text),
+                material=gfx.TextMaterial(color="#333333"),
+                font_size=font_size,
+                anchor=anchor,
+                screen_space=True,
+            )
             obj.local.position = tuple(float(p) for p in pos)
             return obj
 
@@ -595,6 +712,31 @@ class STLViewerWidget(QWidget):
         z_title = _make_text("Z Axis", [xmin - (xmax - xmin) * label_offset * 2, ymin, (zmin + zmax) / 2], font_size=12)
         self._scene.add(z_title)
         self._grid_objects.append(z_title)
+
+        # ── Dimension length labels (width, height, depth in mm) ──
+        def _fmt_dim(val):
+            if val < 0.01:
+                return f"{val * 1000:.2f} µm"
+            if val < 1:
+                return f"{val:.2f} mm"
+            if val < 100:
+                return f"{val:.1f} mm"
+            return f"{val:.0f} mm"
+
+        # Width (X): midpoint of bottom-front edge, slightly below
+        width_lbl = _make_text(_fmt_dim(width), [(xmin + xmax) / 2, ymin - (ymax - ymin) * label_offset * 3.5, zmin], font_size=10)
+        self._scene.add(width_lbl)
+        self._grid_objects.append(width_lbl)
+
+        # Height (Y): midpoint of left vertical edge, slightly left
+        height_lbl = _make_text(_fmt_dim(height), [xmin - (xmax - xmin) * label_offset * 3.5, (ymin + ymax) / 2, zmin], font_size=10)
+        self._scene.add(height_lbl)
+        self._grid_objects.append(height_lbl)
+
+        # Depth (Z): midpoint of left-front vertical edge, slightly left
+        depth_lbl = _make_text(_fmt_dim(depth), [xmin - (xmax - xmin) * label_offset * 3.5, ymin, (zmin + zmax) / 2], font_size=10)
+        self._scene.add(depth_lbl)
+        self._grid_objects.append(depth_lbl)
 
         if self._canvas:
             self._canvas.request_draw()

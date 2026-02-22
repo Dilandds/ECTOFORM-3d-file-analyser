@@ -44,7 +44,7 @@ pip install -r requirements.txt
 source venv/bin/activate
 ```
 
-Then run the application using:
+Then run the application (no environment variables required):
 
 ```bash
 python main.py

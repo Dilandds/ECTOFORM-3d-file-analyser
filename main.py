@@ -50,7 +50,7 @@ safe_flush(sys.stderr)
 from PyQt5.QtWidgets import QApplication, QMessageBox, QDialog, QSplashScreen
 from PyQt5.QtCore import QTimer, Qt as QtCore, Qt
 from PyQt5.QtGui import QPixmap, QColor
-from stl_viewer import STLViewerWindow
+from stl_viewer import STLViewerWindow, USE_PYGFX
 from core.license_validator import is_license_valid_stored
 from ui.license_dialog import LicenseDialog
 from ui.styles import get_global_stylesheet
@@ -70,24 +70,19 @@ def main():
     logger.info("=" * 50)
     
     try:
-        # Windows: OpenGL setup before QApplication
+        # Windows: OpenGL setup before QApplication (no env vars required for exe)
         if sys.platform == 'win32':
             from PyQt5.QtGui import QSurfaceFormat
-            # Option: force software OpenGL to avoid driver black screen on resize/maximize
-            # Set ECTOFORM_USE_SOFTWARE_OPENGL=1 to enable (slower but often fixes black screen)
-            if os.environ.get('ECTOFORM_USE_SOFTWARE_OPENGL', '').lower() in ('1', 'true', 'yes'):
-                QApplication.setAttribute(Qt.AA_UseSoftwareOpenGL, True)
-                logger.info("Using software OpenGL (ECTOFORM_USE_SOFTWARE_OPENGL=1)")
             fmt = QSurfaceFormat()
             fmt.setSamples(0)
             QSurfaceFormat.setDefaultFormat(fmt)
-        # Windows: pre-initialize VTK with a Plotter (pyvistaqt #386 workaround for QtInteractor issues)
-        if sys.platform == 'win32':
+        # Windows: pre-initialize VTK only when using PyVista (pygfx uses WebGPU, no VTK)
+        if sys.platform == 'win32' and not USE_PYGFX:
             try:
                 import pyvista as pv
                 _preinit = pv.Plotter()
                 _preinit.close()
-                logger.info("VTK pre-initialized (pyvistaqt workaround)")
+                logger.info("VTK pre-initialized (PyVista fallback)")
             except Exception as e:
                 logger.debug(f"VTK pre-init skipped: {e}")
         print("Step 1: Creating QApplication...", file=sys.stderr)
