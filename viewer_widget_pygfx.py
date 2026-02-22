@@ -93,6 +93,17 @@ class STLViewerWidget(QWidget):
             from PyQt5.QtCore import QTimer
             QTimer.singleShot(100, self._init_pygfx)
 
+    def resizeEvent(self, event):
+        """Update camera aspect on resize so framing stays correct."""
+        super().resizeEvent(event)
+        if self._initialized and self._camera is not None and self._canvas is not None:
+            try:
+                cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
+                if cw > 0 and ch > 0:
+                    self._camera.aspect = cw / ch
+            except Exception:
+                pass
+
     def _init_pygfx(self):
         if self._initialized:
             return
@@ -234,9 +245,38 @@ class STLViewerWidget(QWidget):
             self._model_loaded = True
             self._show_overlay(False)
 
+            # Ensure layout is complete and canvas has valid size before framing
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
+
             # Pygfx-recommended: syncs camera + controller orbit center
+            # Update camera aspect from current canvas size (critical for correct framing)
+            try:
+                cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.width(), self.height())
+            except Exception:
+                cw, ch = max(1, self.width()), max(1, self.height())
+            self._camera.aspect = cw / ch
             view_dir = (1.2, -0.8, -1.0)  # isometric-like, matches PyVista default
-            self._camera.show_object(self._mesh_obj, view_dir=view_dir, scale=1.2)
+            self._camera.show_object(
+                self._mesh_obj, view_dir=view_dir, scale=1.8, up=(0, 1, 0)
+            )
+
+            # Explicitly set orbit target to mesh center so Y-axis rotation works correctly
+            b = np.asarray(mesh_tri.bounds)
+            if b.ndim == 2 and b.shape == (2, 3):
+                mins, maxs = b[0], b[1]
+            else:
+                mins = np.array([b[0], b[2], b[4]])
+                maxs = np.array([b[1], b[3], b[5]])
+            center = (
+                float(mins[0] + maxs[0]) / 2,
+                float(mins[1] + maxs[1]) / 2,
+                float(mins[2] + maxs[2]) / 2,
+            )
+            try:
+                self._controller.target = center
+            except Exception:
+                pass
 
             # Position axes at mesh min corner (PyVista add_axes in corner)
             if getattr(self, '_axes', None) is not None:
@@ -259,8 +299,17 @@ class STLViewerWidget(QWidget):
                 except Exception:
                     pass
 
+            # Force immediate redraw so object appears without needing a click
             if self._canvas:
                 self._canvas.update()
+                self._canvas.repaint()
+            QApplication.processEvents()
+            # Deferred redraw in case first paint runs before WebGPU is ready
+            from PyQt5.QtCore import QTimer
+            def _deferred_repaint():
+                if self._canvas and getattr(self, '_model_loaded', False):
+                    self._canvas.repaint()
+            QTimer.singleShot(50, _deferred_repaint)
 
             logger.info("load_stl (pygfx): Loaded successfully")
             return True
