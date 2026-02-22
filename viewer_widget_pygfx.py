@@ -160,7 +160,7 @@ class STLViewerWidget(QWidget):
             self._camera.local.up = (0, 1, 0)  # Y-up: drag left/right rotates around Y axis
             self._camera.show_pos((0, 0, 0))
 
-            self._controller = gfx.OrbitController(
+            self._controller = gfx.TrackballController(
                 self._camera, register_events=self._renderer
             )
             self._controller.auto_update = True
@@ -261,22 +261,7 @@ class STLViewerWidget(QWidget):
                 self._mesh_obj, view_dir=view_dir, scale=1.8, up=(0, 1, 0)
             )
 
-            # Explicitly set orbit target to mesh center so Y-axis rotation works correctly
-            b = np.asarray(mesh_tri.bounds)
-            if b.ndim == 2 and b.shape == (2, 3):
-                mins, maxs = b[0], b[1]
-            else:
-                mins = np.array([b[0], b[2], b[4]])
-                maxs = np.array([b[1], b[3], b[5]])
-            center = (
-                float(mins[0] + maxs[0]) / 2,
-                float(mins[1] + maxs[1]) / 2,
-                float(mins[2] + maxs[2]) / 2,
-            )
-            try:
-                self._controller.target = center
-            except Exception:
-                pass
+            # No fixed orbit target — TrackballController rotates around viewport center
 
             # Position axes at mesh min corner (PyVista add_axes in corner)
             if getattr(self, '_axes', None) is not None:
