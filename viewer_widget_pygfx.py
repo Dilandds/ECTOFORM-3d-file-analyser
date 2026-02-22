@@ -84,6 +84,7 @@ class STLViewerWidget(QWidget):
         self.plotter = None  # Not used; kept for hasattr checks
         self._model_loaded = False
         self._initialized = False
+        self._render_mode = 'solid'
 
         _debug_print("STLViewerWidget (pygfx): Basic init complete")
 
@@ -236,6 +237,7 @@ class STLViewerWidget(QWidget):
             mesh_obj = gfx.Mesh(geometry, material)
             self._mesh_obj = mesh_obj
             self._scene.add(self._mesh_obj)
+            self.set_render_mode(self._render_mode)
 
             # Convert to PyVista for MeshCalculator compatibility
             pv_mesh = _trimesh_to_pyvista(mesh_tri)
@@ -302,6 +304,27 @@ class STLViewerWidget(QWidget):
         except Exception as e:
             logger.error(f"load_stl (pygfx): Error: {e}", exc_info=True)
             return False
+
+    def set_render_mode(self, mode):
+        """Set render mode: 'solid', 'wireframe', or 'shaded'."""
+        if self._mesh_obj is None:
+            return
+        self._render_mode = mode
+        import pygfx as gfx
+        if mode == 'wireframe':
+            self._mesh_obj.material = gfx.MeshBasicMaterial(
+                wireframe=True, color="#333333", wireframe_thickness=1
+            )
+        elif mode == 'shaded':
+            self._mesh_obj.material = gfx.MeshPhongMaterial(
+                color="#b8b8c0", specular="#a0a0a0", shininess=90
+            )
+        else:  # solid
+            self._mesh_obj.material = gfx.MeshPhongMaterial(
+                color="#add8e6", specular="#333333", shininess=20
+            )
+        if self._canvas:
+            self._canvas.repaint()
 
     def clear_viewer(self):
         """Clear the 3D viewer."""

@@ -444,6 +444,9 @@ class STLViewerWindow(QMainWindow):
     
     def _set_render_mode(self, mode):
         """Set render mode: solid, wireframe, or shaded."""
+        if hasattr(self.viewer_widget, 'set_render_mode'):
+            self.viewer_widget.set_render_mode(mode)
+            return
         if hasattr(self.viewer_widget, 'current_actor') and self.viewer_widget.current_actor is not None:
             try:
                 prop = self.viewer_widget.current_actor.GetProperty()
