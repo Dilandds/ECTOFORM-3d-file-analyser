@@ -10,19 +10,26 @@ from PyQt5.QtWidgets import (
     QMessageBox, QSplitter, QFrame, QApplication
 )
 from PyQt5.QtCore import Qt, QEvent, QTimer
-# Windows: set ECTOFORM_USE_OFFSCREEN=1 to force offscreen renderer (avoids black screen on maximize)
-_force_offscreen = os.environ.get('ECTOFORM_USE_OFFSCREEN', '').lower() in ('1', 'true', 'yes')
-if _force_offscreen and sys.platform == 'win32':
-    from viewer_widget_offscreen import STLViewerWidgetOffscreen as STLViewerWidget
-    USE_OFFSCREEN = True
-else:
-    try:
-        from viewer_widget import STLViewerWidget
-        USE_OFFSCREEN = False
-    except Exception as e:
-        print(f"Warning: Could not import QtInteractor viewer, using offscreen fallback: {e}", file=sys.stderr)
+# Use pygfx by default (WebGPU, avoids Windows black screen). No env var needed for exe.
+# Fall back to PyVista if pygfx import fails.
+USE_PYGFX = False
+USE_OFFSCREEN = False
+try:
+    from viewer_widget_pygfx import STLViewerWidget
+    USE_PYGFX = True
+except Exception as e:
+    print(f"Warning: Could not import pygfx viewer: {e}, falling back to PyVista", file=sys.stderr)
+    _force_offscreen = os.environ.get('ECTOFORM_USE_OFFSCREEN', '').lower() in ('1', 'true', 'yes')
+    if _force_offscreen and sys.platform == 'win32':
         from viewer_widget_offscreen import STLViewerWidgetOffscreen as STLViewerWidget
         USE_OFFSCREEN = True
+    else:
+        try:
+            from viewer_widget import STLViewerWidget
+        except Exception as e2:
+            print(f"Warning: Could not import QtInteractor viewer, using offscreen fallback: {e2}", file=sys.stderr)
+            from viewer_widget_offscreen import STLViewerWidgetOffscreen as STLViewerWidget
+            USE_OFFSCREEN = True
 
 from ui.sidebar_panel import SidebarPanel
 from ui.toolbar import ViewControlsToolbar
