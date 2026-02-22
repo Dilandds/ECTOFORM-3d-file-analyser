@@ -146,11 +146,13 @@ class STLViewerWidget(QWidget):
             w, h = max(400, self.width()), max(300, self.height())
             self._camera = gfx.PerspectiveCamera(50, w / h)
             self._camera.local.position = (0, 0, 5)
+            self._camera.local.up = (0, 1, 0)  # Y-up: drag left/right rotates around Y axis
             self._camera.show_pos((0, 0, 0))
 
             self._controller = gfx.OrbitController(
                 self._camera, register_events=self._renderer
             )
+            self._controller.auto_update = True
 
             def animate():
                 if self._renderer and self._scene and self._camera:
