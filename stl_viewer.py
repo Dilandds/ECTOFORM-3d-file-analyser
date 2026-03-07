@@ -214,15 +214,23 @@ class STLViewerWindow(QMainWindow):
         self.right_layout.addWidget(self.ruler_toolbar)
         logger.info("init_ui: Ruler toolbar created")
         
-        # ---- Stacked widgets for viewers and annotation panels ----
+        # ---- Stacked widgets for viewers and annotation/screenshot panels ----
         self.viewer_stack = QStackedWidget()
         self.annotation_stack = QStackedWidget()
+        self.screenshot_stack = QStackedWidget()
+        self.screenshot_stack.hide()
+        
+        # Shared screenshot panel (one per window, not per tab)
+        self.screenshot_panel = ScreenshotPanel()
+        self.screenshot_panel.exit_screenshot_mode.connect(self._exit_screenshot_mode)
+        self.screenshot_stack.addWidget(self.screenshot_panel)
         
         viewer_h_layout = QHBoxLayout()
         viewer_h_layout.setContentsMargins(0, 0, 0, 0)
         viewer_h_layout.setSpacing(0)
         viewer_h_layout.addWidget(self.viewer_stack, 1)
         viewer_h_layout.addWidget(self.annotation_stack)
+        viewer_h_layout.addWidget(self.screenshot_stack)
         
         viewer_container = QWidget()
         viewer_container.setLayout(viewer_h_layout)
