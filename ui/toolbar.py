@@ -554,11 +554,32 @@ class ViewControlsToolbar(QWidget):
                 self.ruler_mode_enabled = False
                 self.ruler_btn.set_active(False)
                 self.ruler_btn.set_icon("📏")
+            # Disable screenshot mode if active
+            if self.screenshot_mode_enabled:
+                self.screenshot_mode_enabled = False
+                self.screenshot_btn.set_active(False)
         else:
             self.annotation_btn.set_label("Annotate")
             self.annotation_btn.set_icon("📝")
         self.annotation_btn.set_active(self.annotation_mode_enabled)
         self.toggle_annotation.emit()
+    
+    def _on_screenshot_clicked(self):
+        """Handle screenshot mode toggle."""
+        self.screenshot_mode_enabled = not self.screenshot_mode_enabled
+        if self.screenshot_mode_enabled:
+            # Disable ruler mode if active
+            if self.ruler_mode_enabled:
+                self.ruler_mode_enabled = False
+                self.ruler_btn.set_active(False)
+                self.ruler_btn.set_icon("📏")
+            # Disable annotation mode if active
+            if self.annotation_mode_enabled:
+                self.annotation_mode_enabled = False
+                self.annotation_btn.set_active(False)
+                self.annotation_btn.set_icon("📝")
+        self.screenshot_btn.set_active(self.screenshot_mode_enabled)
+        self.toggle_screenshot.emit()
     
     def _on_fullscreen_clicked(self):
         """Handle fullscreen toggle."""
