@@ -555,6 +555,7 @@ class STLViewerWindow(QMainWindow):
         self.toolbar.view_bottom.connect(self._view_bottom)
         self.toolbar.toggle_fullscreen.connect(self._toggle_fullscreen)
         self.toolbar.toggle_ruler.connect(self._toggle_ruler_mode)
+        self.toolbar.toggle_screenshot.connect(self._toggle_screenshot_mode)
         self.toolbar.toggle_annotation.connect(self._toggle_annotation_mode)
         self.toolbar.load_file.connect(self.upload_stl_file)
         self.toolbar.clear_model.connect(self._clear_current_model)
