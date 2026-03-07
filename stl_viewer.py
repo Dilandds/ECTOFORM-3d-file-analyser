@@ -379,6 +379,16 @@ class STLViewerWindow(QMainWindow):
             if self.toolbar.annotation_mode_enabled:
                 self.toolbar.reset_annotation_state()
         
+        # Restore screenshot mode
+        if tab.screenshot_mode_active:
+            self.toolbar.screenshot_mode_enabled = True
+            self.toolbar.screenshot_btn.set_active(True)
+            self.screenshot_stack.show()
+            self.screenshot_panel.show()
+        else:
+            if self.toolbar.screenshot_mode_enabled:
+                self._exit_screenshot_mode()
+        
         logger.info(f"_on_tab_changed: Switched to tab {index} ({tab.filename or 'Untitled'})")
     
     def _save_current_tab_state(self):
@@ -388,6 +398,7 @@ class STLViewerWindow(QMainWindow):
             return
         tab.ruler_active = self.toolbar.ruler_mode_enabled
         tab.annotation_mode_active = self.toolbar.annotation_mode_enabled
+        tab.screenshot_mode_active = self.toolbar.screenshot_mode_enabled
     
     def _on_tab_close_requested(self, index: int):
         """Handle tab close button click."""
