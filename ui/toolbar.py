@@ -221,6 +221,7 @@ class ViewControlsToolbar(QWidget):
     toggle_fullscreen = pyqtSignal()
     toggle_ruler = pyqtSignal()
     toggle_annotation = pyqtSignal()
+    toggle_screenshot = pyqtSignal()
     load_file = pyqtSignal()
     clear_model = pyqtSignal()
     
