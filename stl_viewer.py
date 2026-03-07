@@ -643,6 +643,10 @@ class STLViewerWindow(QMainWindow):
         if self.annotation_panel.isVisible():
             self._exit_annotation_mode()
         
+        # Exit screenshot mode if active
+        if self.toolbar.screenshot_mode_enabled:
+            self._exit_screenshot_mode()
+        
         # Reset sidebar panel dimensions and calculations
         self.sidebar_panel.reset_all_data()
         
