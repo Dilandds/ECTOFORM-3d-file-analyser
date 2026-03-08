@@ -330,11 +330,18 @@ class ImageCanvas(QWidget):
             self.update()
             return
 
+        # Update mouse pos for preview line during two-click annotation
+        if self._annotation_mode and self._pending_target is not None:
+            self._mouse_pos = QPointF(event.pos())
+            self.update()
+
         # Hover detection
         hit = self._hit_test(event.pos())
         if hit != self._hover_id:
             self._hover_id = hit
             self.update()
+
+        super().mouseMoveEvent(event)
 
         super().mouseMoveEvent(event)
 
