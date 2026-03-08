@@ -327,6 +327,62 @@ class STLViewerWindow(QMainWindow):
         
         logger.info("init_ui: UI initialization complete")
     
+    # ======================== Mode Switching ========================
+    
+    def _update_mode_btn_styles(self):
+        """Update mode switcher button styles based on current mode."""
+        active_style = f"""
+            QPushButton {{
+                background-color: {default_theme.button_primary};
+                border: none; border-radius: 4px;
+                padding: 4px 14px; font-size: 11px; font-weight: bold;
+                color: white;
+            }}
+        """
+        inactive_style = f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 1px solid {default_theme.border_light};
+                border-radius: 4px;
+                padding: 4px 14px; font-size: 11px;
+                color: {default_theme.text_secondary};
+            }}
+            QPushButton:hover {{
+                background-color: {default_theme.row_bg_hover};
+            }}
+        """
+        self._mode_3d_btn.setStyleSheet(active_style if self._current_mode == "3d" else inactive_style)
+        self._mode_tech_btn.setStyleSheet(active_style if self._current_mode == "technical" else inactive_style)
+    
+    def _switch_mode(self, mode: str):
+        """Switch between '3d' and 'technical' workspace modes."""
+        if mode == self._current_mode:
+            return
+        self._current_mode = mode
+        self._mode_3d_btn.setChecked(mode == "3d")
+        self._mode_tech_btn.setChecked(mode == "technical")
+        self._update_mode_btn_styles()
+        
+        if mode == "3d":
+            self._workspace_stack.setCurrentIndex(0)
+            self.setWindowTitle(f"ECTOFORM - {self._current_tab.filename}" if self._current_tab and self._current_tab.filename else "ECTOFORM")
+        else:
+            self._workspace_stack.setCurrentIndex(1)
+            self.setWindowTitle("ECTOFORM - Technical Overview")
+        
+        logger.info(f"_switch_mode: Switched to {mode} mode")
+    
+    def _tech_upload_image(self):
+        """Handle upload request from technical sidebar."""
+        self.technical_overview.upload_image()
+    
+    def _tech_toggle_annotation(self, enabled: bool):
+        """Toggle annotation mode on the technical overview."""
+        if enabled:
+            self.technical_overview.enter_annotation_mode()
+        else:
+            self.technical_overview.exit_annotation_mode()
+
     # ======================== Tab Management ========================
     
     def _create_new_tab(self, file_path: str = None) -> int:
