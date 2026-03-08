@@ -389,11 +389,14 @@ class ImageCanvas(QWidget):
 class TechnicalAnnotationPanel(QWidget):
     """
     Right-side panel listing arrow annotations for the Technical Overview.
-    Each annotation has a number, optional comment, and delete button.
+    Each annotation has a number, optional comment, color picker, and delete button.
+    Clicking a card opens the AnnotationPopup for text/image editing.
     """
     annotation_deleted = pyqtSignal(int)
     annotation_selected = pyqtSignal(int)
     annotation_comment_changed = pyqtSignal(int, str)
+    annotation_color_changed = pyqtSignal(int, str)  # id, hex color
+    open_popup_requested = pyqtSignal(int)  # annotation id
     exit_mode = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -414,7 +417,7 @@ class TechnicalAnnotationPanel(QWidget):
         header.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {default_theme.text_title};")
         layout.addWidget(header)
 
-        hint = QLabel("Click on the image to place arrow annotations")
+        hint = QLabel("Click on the image to place arrow annotations.\nClick a card to edit text & photos.")
         hint.setWordWrap(True)
         hint.setStyleSheet(f"font-size: 10px; color: {default_theme.text_secondary};")
         layout.addWidget(hint)
@@ -476,6 +479,8 @@ class TechnicalAnnotationPanel(QWidget):
             self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, card)
 
     def _create_card(self, ann: ArrowAnnotation, number: int) -> QFrame:
+        from PyQt5.QtWidgets import QColorDialog
+
         card = QFrame()
         card.setStyleSheet(f"""
             QFrame {{
@@ -494,13 +499,48 @@ class TechnicalAnnotationPanel(QWidget):
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(6)
 
+        # Color swatch button
+        color_btn = QPushButton()
+        color_btn.setFixedSize(20, 20)
+        color_btn.setCursor(Qt.PointingHandCursor)
+        color_btn.setToolTip("Change arrow color")
+        ann_color = ann.color or ARROW_COLOR
+        color_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ann_color};
+                border: 2px solid {default_theme.border_light};
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                border: 2px solid {default_theme.border_highlight};
+            }}
+        """)
+
+        def _pick_color(aid=ann.id, btn=color_btn):
+            c = QColorDialog.getColor(QColor(ann_color), self, "Arrow Color")
+            if c.isValid():
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {c.name()};
+                        border: 2px solid {default_theme.border_light};
+                        border-radius: 10px;
+                    }}
+                    QPushButton:hover {{
+                        border: 2px solid {default_theme.border_highlight};
+                    }}
+                """)
+                self.annotation_color_changed.emit(aid, c.name())
+
+        color_btn.clicked.connect(_pick_color)
+        layout.addWidget(color_btn)
+
         # Number badge
         badge = QLabel(str(number))
         badge.setFixedSize(24, 24)
         badge.setAlignment(Qt.AlignCenter)
         badge.setStyleSheet(f"""
             QLabel {{
-                background-color: {ARROW_BADGE_BG}; color: {ARROW_BADGE_TEXT};
+                background-color: {ann_color}; color: {ARROW_BADGE_TEXT};
                 border-radius: 12px; font-weight: bold; font-size: 11px;
             }}
         """)
@@ -509,12 +549,19 @@ class TechnicalAnnotationPanel(QWidget):
         # Text area
         info = QVBoxLayout()
         info.setSpacing(2)
-        label = QLabel(ann.text or f"Annotation {number}")
+        display_text = ann.text[:40] + "…" if len(ann.text) > 40 else (ann.text or f"Annotation {number}")
+        label = QLabel(display_text)
         label.setStyleSheet(f"font-size: 11px; color: {default_theme.text_primary}; border: none;")
         label.setWordWrap(True)
         info.addWidget(label)
 
+        # Show photo count if any
+        extras = []
+        if ann.image_paths:
+            extras.append(f"📷 {len(ann.image_paths)}")
         coord_text = f"({ann.target_x:.2f}, {ann.target_y:.2f})"
+        if extras:
+            coord_text += " · " + " ".join(extras)
         coord = QLabel(coord_text)
         coord.setStyleSheet(f"font-size: 9px; color: {default_theme.text_secondary}; border: none;")
         info.addWidget(coord)
@@ -534,8 +581,8 @@ class TechnicalAnnotationPanel(QWidget):
         del_btn.clicked.connect(lambda: self.annotation_deleted.emit(ann.id))
         layout.addWidget(del_btn, 0, Qt.AlignTop)
 
-        # Click to select
-        card.mousePressEvent = lambda e, aid=ann.id: self.annotation_selected.emit(aid)
+        # Click card to open popup (not on buttons)
+        card.mousePressEvent = lambda e, aid=ann.id: self.open_popup_requested.emit(aid)
 
         return card
 
