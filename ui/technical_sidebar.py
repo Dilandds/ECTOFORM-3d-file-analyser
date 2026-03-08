@@ -288,7 +288,31 @@ class TechnicalSidebar(QWidget):
         self.comments_edit.clear()
         self.set_annotation_mode(False)
 
-    def _create_manufacturer_row(self, placeholder: str, removable: bool = True) -> QWidget:
+    def set_metadata(self, meta: dict):
+        """Populate sidebar fields from a metadata dict (e.g. from .ecto import)."""
+        self.property_edit.setText(meta.get('property', ''))
+        self.title_edit.setText(meta.get('title', ''))
+        # Manufacturers
+        manufacturers = meta.get('manufacturers', [])
+        # Clear existing
+        while len(self._manufacturer_edits) > 1:
+            row = self._manufacturer_edits.pop()
+            row.parent().deleteLater()
+        if self._manufacturer_edits:
+            self._manufacturer_edits[0].setText(manufacturers[0] if manufacturers else '')
+        for m in manufacturers[1:]:
+            self._add_manufacturer_field()
+            self._manufacturer_edits[-1].setText(m)
+        # Dates
+        if meta.get('start_date'):
+            d = QDate.fromString(meta['start_date'], Qt.ISODate)
+            if d.isValid():
+                self.start_date.setDate(d)
+        if meta.get('deadline'):
+            d = QDate.fromString(meta['deadline'], Qt.ISODate)
+            if d.isValid():
+                self.deadline_date.setDate(d)
+        self.comments_edit.setPlainText(meta.get('comments', ''))
         """Create a manufacturer input row, optionally with a remove button."""
         if not removable:
             le = _line_edit(placeholder)
