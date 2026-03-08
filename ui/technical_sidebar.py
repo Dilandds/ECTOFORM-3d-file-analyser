@@ -230,6 +230,24 @@ class TechnicalSidebar(QWidget):
         self.export_btn.clicked.connect(lambda: self.export_requested.emit())
         layout.addWidget(self.export_btn)
 
+        # Export PDF button
+        self.export_pdf_btn = QPushButton("📄 Export PDF Report")
+        self.export_pdf_btn.setFixedHeight(34)
+        self.export_pdf_btn.setCursor(Qt.PointingHandCursor)
+        self.export_pdf_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #3B82F6;
+                border: none; border-radius: 6px;
+                padding: 6px 12px; font-size: 11px; font-weight: bold;
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #2563EB;
+            }}
+        """)
+        self.export_pdf_btn.clicked.connect(lambda: self.export_pdf_requested.emit())
+        layout.addWidget(self.export_pdf_btn)
+
         layout.addStretch()
 
         scroll.setWidget(container)

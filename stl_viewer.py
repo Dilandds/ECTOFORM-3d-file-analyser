@@ -436,6 +436,39 @@ class STLViewerWindow(QMainWindow):
         else:
             QMessageBox.critical(self, "Export Failed", f"Error: {msg}")
 
+    def _tech_export_pdf(self):
+        """Export technical overview as a PDF report with annotated image and table."""
+        pixmap = self.technical_overview.canvas._pixmap
+        if pixmap is None or pixmap.isNull():
+            QMessageBox.warning(self, "No Document", "Please upload an image or PDF first.")
+            return
+
+        metadata = self.technical_sidebar.get_metadata()
+        default_name = "Technical_Overview_Report.pdf"
+        doc_path = self.technical_overview.get_document_path()
+        if doc_path:
+            default_name = Path(doc_path).stem + "_report.pdf"
+
+        save_path, _ = QFileDialog.getSaveFileName(
+            self, "Export PDF Report", default_name,
+            "PDF Files (*.pdf);;All Files (*)"
+        )
+        if not save_path:
+            return
+
+        from core.technical_pdf_exporter import TechnicalPDFExporter
+        annotations = self.technical_overview.get_annotations()
+        success, msg = TechnicalPDFExporter.export(
+            document_pixmap=pixmap,
+            annotations=annotations,
+            metadata=metadata,
+            output_path=save_path,
+        )
+        if success:
+            QMessageBox.information(self, "PDF Exported", f"Report saved to:\n{msg}")
+        else:
+            QMessageBox.critical(self, "Export Failed", f"Error: {msg}")
+
     # ======================== Tab Management ========================
     
     def _create_new_tab(self, file_path: str = None) -> int:
