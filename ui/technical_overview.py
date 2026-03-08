@@ -50,7 +50,7 @@ class ImageCanvas(QWidget):
     Zoomable, pannable canvas that displays an image and draws arrow
     annotations from the margin to clicked target points.
     """
-    annotation_placed = pyqtSignal(float, float)  # normalised x, y on image
+    annotation_placed = pyqtSignal(float, float, float, float)  # target_nx, target_ny, origin_nx, origin_ny
     annotation_selected = pyqtSignal(int)  # annotation id
     click_to_upload = pyqtSignal()
 
