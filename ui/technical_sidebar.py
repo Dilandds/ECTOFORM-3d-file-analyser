@@ -249,6 +249,26 @@ class TechnicalSidebar(QWidget):
         self.export_pdf_btn.clicked.connect(lambda: self.export_pdf_requested.emit())
         layout.addWidget(self.export_pdf_btn)
 
+        layout.addSpacing(12)
+
+        # Reset button
+        self.reset_btn = QPushButton("🔄 Reset Workspace")
+        self.reset_btn.setFixedHeight(34)
+        self.reset_btn.setCursor(Qt.PointingHandCursor)
+        self.reset_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #EF4444;
+                border: none; border-radius: 6px;
+                padding: 6px 12px; font-size: 11px; font-weight: bold;
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #DC2626;
+            }}
+        """)
+        self.reset_btn.clicked.connect(lambda: self.reset_requested.emit())
+        layout.addWidget(self.reset_btn)
+
         layout.addStretch()
 
         scroll.setWidget(container)
