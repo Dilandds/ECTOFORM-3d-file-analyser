@@ -186,6 +186,17 @@ class ImageCanvas(QWidget):
         for i, ann in enumerate(self._annotations):
             self._draw_arrow(painter, ann, i + 1, rect)
 
+        # Draw preview line from pending target to mouse cursor (two-click mode)
+        if self._pending_target and self._mouse_pos and self._annotation_mode:
+            target_widget = self._normalised_to_widget(self._pending_target[0], self._pending_target[1])
+            pen = QPen(QColor(ARROW_COLOR), 1.5, Qt.DashLine)
+            painter.setPen(pen)
+            painter.drawLine(target_widget, self._mouse_pos)
+            # Draw small dot at target
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(QColor(ARROW_COLOR)))
+            painter.drawEllipse(target_widget, 4, 4)
+
         painter.end()
 
     def _draw_drop_zone(self, painter: QPainter):
