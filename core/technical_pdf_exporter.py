@@ -245,10 +245,27 @@ class TechnicalPDFExporter:
         if pixmap is None or pixmap.isNull():
             return
 
-        # Work on a copy with margins for arrow origins
-        margin = 50  # px margin around image for badges
-        total_w = pixmap.width() + margin * 2
-        total_h = pixmap.height() + margin * 2
+        # Compute margins needed to fit all annotation origins (which may be outside 0-1)
+        base_margin = 50
+        extra_left = extra_right = extra_top = extra_bottom = 0
+        for ann in annotations:
+            ox, oy = getattr(ann, 'origin_x', 0.5), getattr(ann, 'origin_y', 0.5)
+            if ox < 0:
+                extra_left = max(extra_left, -ox * pixmap.width() + 30)
+            if ox > 1:
+                extra_right = max(extra_right, (ox - 1) * pixmap.width() + 30)
+            if oy < 0:
+                extra_top = max(extra_top, -oy * pixmap.height() + 30)
+            if oy > 1:
+                extra_bottom = max(extra_bottom, (oy - 1) * pixmap.height() + 30)
+
+        margin_l = base_margin + int(extra_left)
+        margin_r = base_margin + int(extra_right)
+        margin_t = base_margin + int(extra_top)
+        margin_b = base_margin + int(extra_bottom)
+
+        total_w = pixmap.width() + margin_l + margin_r
+        total_h = pixmap.height() + margin_t + margin_b
 
         canvas = QImage(total_w, total_h, QImage.Format_ARGB32)
         canvas.fill(QColor("#FFFFFF"))
@@ -256,12 +273,11 @@ class TechnicalPDFExporter:
         painter = QPainter(canvas)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # Draw the document image centred in the canvas
-        img_rect = QRectF(margin, margin, pixmap.width(), pixmap.height())
+        # Draw the document image
+        img_rect = QRectF(margin_l, margin_t, pixmap.width(), pixmap.height())
         painter.drawPixmap(img_rect.toRect(), pixmap)
 
         # Draw each annotation arrow
-        margin_gap = 40
         for idx, ann in enumerate(annotations, start=1):
             target = QPointF(
                 img_rect.x() + ann.target_x * img_rect.width(),
