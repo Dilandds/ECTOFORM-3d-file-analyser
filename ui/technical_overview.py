@@ -222,11 +222,18 @@ class ImageCanvas(QWidget):
         else:  # bottom
             origin = QPointF(target.x(), img_rect.bottom() + margin_gap)
 
-        # Draw line
-        color = QColor(ARROW_SELECTED_COLOR if is_selected else ARROW_COLOR)
-        if is_hovered and not is_selected:
-            color = color.lighter(120)
-        pen = QPen(color, 2.5 if is_selected else 2.0)
+        # Use per-annotation color
+        base_color = QColor(ann.color if ann.color else ARROW_COLOR)
+        if is_selected:
+            color = QColor(ARROW_SELECTED_COLOR)
+        elif is_hovered:
+            color = base_color.lighter(120)
+        else:
+            color = base_color
+
+        # Thicker line on hover or selected
+        line_width = 4.0 if is_hovered else (3.0 if is_selected else 2.0)
+        pen = QPen(color, line_width)
         painter.setPen(pen)
         painter.drawLine(origin, target)
 
