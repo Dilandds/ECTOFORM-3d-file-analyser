@@ -102,7 +102,7 @@ class TechnicalSidebar(QWidget):
 
         # Property
         layout.addWidget(_section_label("PROPERTY"))
-        self.property_edit = _line_edit("e.g. Building A, Floor 3")
+        self.property_edit = _line_edit("e.g. Company")
         layout.addWidget(self.property_edit)
 
         # Title
@@ -115,14 +115,15 @@ class TechnicalSidebar(QWidget):
         mfr_header.addWidget(_section_label("MANUFACTURER"))
         mfr_header.addStretch()
         add_mfr_btn = QPushButton("+")
-        add_mfr_btn.setFixedSize(20, 20)
+        add_mfr_btn.setFixedSize(26, 26)
         add_mfr_btn.setCursor(Qt.PointingHandCursor)
         add_mfr_btn.setToolTip("Add another manufacturer")
         add_mfr_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {default_theme.button_primary};
-                border: none; border-radius: 10px;
-                color: white; font-size: 14px; font-weight: bold;
+                border: none; border-radius: 13px;
+                color: white; font-size: 16px; font-weight: bold;
+                padding: 0; min-width: 26px; min-height: 26px;
             }}
             QPushButton:hover {{
                 background-color: {default_theme.button_primary_hover};
@@ -282,10 +283,14 @@ class TechnicalSidebar(QWidget):
         self._manufacturer_edits.append(le)
         rl.addWidget(le)
         rm_btn = QPushButton("✕")
-        rm_btn.setFixedSize(20, 20)
+        rm_btn.setFixedSize(26, 26)
         rm_btn.setCursor(Qt.PointingHandCursor)
         rm_btn.setStyleSheet("""
-            QPushButton { background-color: #FEE2E2; border: none; border-radius: 10px; color: #DC2626; font-size: 11px; font-weight: bold; }
+            QPushButton {
+                background-color: #FEE2E2; border: none; border-radius: 13px;
+                color: #DC2626; font-size: 14px; font-weight: bold;
+                padding: 0; min-width: 26px; min-height: 26px;
+            }
             QPushButton:hover { background-color: #FECACA; }
         """)
         rm_btn.clicked.connect(lambda: self._remove_manufacturer_row(row, le))

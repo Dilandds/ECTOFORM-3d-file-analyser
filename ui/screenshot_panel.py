@@ -75,7 +75,7 @@ class ScreenshotCard(QFrame):
         ts_label.setStyleSheet(f"color: {default_theme.text_subtext}; font-size: 10px; background: transparent;")
         header.addWidget(ts_label)
         close_btn = QPushButton("✕")
-        close_btn.setFixedSize(22, 22)
+        close_btn.setFixedSize(26, 26)
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setToolTip("Remove screenshot")
         close_btn.setStyleSheet(f"""
@@ -84,7 +84,9 @@ class ScreenshotCard(QFrame):
                 color: {default_theme.text_secondary};
                 border: none;
                 border-radius: 4px;
-                font-size: 12px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0; min-width: 26px; min-height: 26px;
             }}
             QPushButton:hover {{
                 background-color: {default_theme.row_bg_hover};
@@ -282,15 +284,16 @@ class ScreenshotPanel(QWidget):
         exit_btn = QPushButton("✕")
         exit_btn.setObjectName("exitScreenshotBtn")
         exit_btn.setCursor(Qt.PointingHandCursor)
-        exit_btn.setFixedSize(24, 24)
+        exit_btn.setFixedSize(28, 28)
         exit_btn.setStyleSheet(f"""
             QPushButton#exitScreenshotBtn {{
                 background-color: {default_theme.button_default_bg};
                 color: {default_theme.text_secondary};
                 border: none;
-                border-radius: 12px;
-                font-size: 12px;
+                border-radius: 14px;
+                font-size: 16px;
                 font-weight: bold;
+                padding: 0; min-width: 28px; min-height: 28px;
             }}
             QPushButton#exitScreenshotBtn:hover {{
                 background-color: {default_theme.row_bg_hover};

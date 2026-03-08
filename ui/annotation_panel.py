@@ -254,21 +254,22 @@ class AnnotationCard(QFrame):
         
         # Delete button (cross)
         self.delete_btn = QPushButton("✕")
-        self.delete_btn.setFixedSize(24, 24)
+        self.delete_btn.setFixedSize(28, 28)
         self.delete_btn.setCursor(Qt.PointingHandCursor)
         self.delete_btn.setToolTip("Remove annotation")
         self.delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
                 border: none;
-                font-size: 13px;
+                font-size: 15px;
                 font-weight: bold;
                 color: {default_theme.text_secondary};
+                padding: 0; min-width: 28px; min-height: 28px;
             }}
             QPushButton:hover {{
                 background-color: #FEE2E2;
                 color: #DC2626;
-                border-radius: 12px;
+                border-radius: 14px;
             }}
         """)
         self.delete_btn.clicked.connect(lambda: self.delete_requested.emit(self.annotation.id))
@@ -474,19 +475,21 @@ class AnnotationPanel(QWidget):
         
         # Close button
         close_btn = QPushButton("✕")
-        close_btn.setFixedSize(24, 24)
+        close_btn.setFixedSize(28, 28)
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
                 border: none;
                 color: {default_theme.text_secondary};
-                font-size: 14px;
+                font-size: 16px;
+                font-weight: bold;
+                padding: 0; min-width: 28px; min-height: 28px;
             }}
             QPushButton:hover {{
                 color: {default_theme.text_primary};
                 background-color: {default_theme.row_bg_hover};
-                border-radius: 12px;
+                border-radius: 14px;
             }}
         """)
         close_btn.clicked.connect(self.exit_annotation_mode.emit)

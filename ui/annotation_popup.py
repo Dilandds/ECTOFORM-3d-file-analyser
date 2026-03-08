@@ -64,16 +64,17 @@ class ImageThumbnail(QFrame):
         
         # Remove button
         remove_btn = QPushButton("✕")
-        remove_btn.setFixedSize(20, 20)
+        remove_btn.setFixedSize(26, 26)
         remove_btn.setCursor(Qt.PointingHandCursor)
         remove_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: #FEE2E2;
                 border: none;
-                border-radius: 10px;
+                border-radius: 13px;
                 color: #DC2626;
-                font-size: 11px;
+                font-size: 14px;
                 font-weight: bold;
+                padding: 0; min-width: 26px; min-height: 26px;
             }}
             QPushButton:hover {{
                 background-color: #FECACA;
