@@ -33,10 +33,12 @@ ARROW_BADGE_TEXT = "#FFFFFF"
 class ArrowAnnotation:
     """A single arrow annotation on the 2D image."""
     id: int
-    target_x: float  # 0-1 normalised position on image
+    target_x: float  # 0-1 normalised position on image (arrow tip)
     target_y: float
+    origin_x: float = 0.0  # 0-1 normalised position for the numbered badge
+    origin_y: float = 0.0
     text: str = ""
-    margin_side: str = "left"  # which margin the arrow originates from
+    margin_side: str = "left"  # kept for backward compat with old .ecto files
     color: str = ARROW_COLOR  # per-annotation color
     image_paths: list = field(default_factory=list)
     label: str = "Point"
@@ -48,7 +50,7 @@ class ImageCanvas(QWidget):
     Zoomable, pannable canvas that displays an image and draws arrow
     annotations from the margin to clicked target points.
     """
-    annotation_placed = pyqtSignal(float, float)  # normalised x, y on image
+    annotation_placed = pyqtSignal(float, float, float, float)  # target_nx, target_ny, origin_nx, origin_ny
     annotation_selected = pyqtSignal(int)  # annotation id
     click_to_upload = pyqtSignal()
 
@@ -63,6 +65,9 @@ class ImageCanvas(QWidget):
         self._annotation_mode = False
         self._selected_id: Optional[int] = None
         self._hover_id: Optional[int] = None
+        # Two-click annotation state
+        self._pending_target: Optional[Tuple[float, float]] = None  # first click (arrow tip)
+        self._mouse_pos: Optional[QPointF] = None  # for live preview line
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -87,6 +92,8 @@ class ImageCanvas(QWidget):
 
     def set_annotation_mode(self, enabled: bool):
         self._annotation_mode = enabled
+        self._pending_target = None  # reset two-click state
+        self._mouse_pos = None
         self.setCursor(Qt.CrossCursor if enabled else Qt.ArrowCursor)
         self.update()
 
@@ -179,6 +186,17 @@ class ImageCanvas(QWidget):
         for i, ann in enumerate(self._annotations):
             self._draw_arrow(painter, ann, i + 1, rect)
 
+        # Draw preview line from pending target to mouse cursor (two-click mode)
+        if self._pending_target and self._mouse_pos and self._annotation_mode:
+            target_widget = self._normalised_to_widget(self._pending_target[0], self._pending_target[1])
+            pen = QPen(QColor(ARROW_COLOR), 1.5, Qt.DashLine)
+            painter.setPen(pen)
+            painter.drawLine(target_widget, self._mouse_pos)
+            # Draw small dot at target
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(QColor(ARROW_COLOR)))
+            painter.drawEllipse(target_widget, 4, 4)
+
         painter.end()
 
     def _draw_drop_zone(self, painter: QPainter):
@@ -214,21 +232,13 @@ class ImageCanvas(QWidget):
         painter.drawText(helper_rect, Qt.AlignCenter, "JPEG · PNG · PDF")
 
     def _draw_arrow(self, painter: QPainter, ann: ArrowAnnotation, number: int, img_rect: QRectF):
-        """Draw a callout arrow from the margin to the annotation target."""
+        """Draw a callout arrow from the origin (badge) to the annotation target (tip)."""
         target = self._normalised_to_widget(ann.target_x, ann.target_y)
         is_selected = ann.id == self._selected_id
         is_hovered = ann.id == self._hover_id
 
-        # Determine origin point on margin
-        margin_gap = 35  # px outside image edge
-        if ann.margin_side == "left":
-            origin = QPointF(img_rect.left() - margin_gap, target.y())
-        elif ann.margin_side == "right":
-            origin = QPointF(img_rect.right() + margin_gap, target.y())
-        elif ann.margin_side == "top":
-            origin = QPointF(target.x(), img_rect.top() - margin_gap)
-        else:  # bottom
-            origin = QPointF(target.x(), img_rect.bottom() + margin_gap)
+        # Use stored origin coordinates
+        origin = self._normalised_to_widget(ann.origin_x, ann.origin_y)
 
         # Use per-annotation color
         base_color = QColor(ann.color if ann.color else ARROW_COLOR)
@@ -247,7 +257,7 @@ class ImageCanvas(QWidget):
         painter.setPen(pen)
         painter.drawLine(origin, target)
 
-        # Rounded cap at target = clean bullet that scales with line width (no blocky triangle)
+        # Rounded cap at target = clean bullet that scales with line width
         self._draw_arrow_end(painter, target, color, line_width)
 
         # Draw numbered badge at origin
@@ -289,7 +299,19 @@ class ImageCanvas(QWidget):
             if self._annotation_mode:
                 norm = self._widget_to_normalised(QPointF(event.pos()))
                 if norm:
-                    self.annotation_placed.emit(norm[0], norm[1])
+                    if self._pending_target is None:
+                        # First click: set target (arrow tip)
+                        self._pending_target = norm
+                        self._mouse_pos = QPointF(event.pos())
+                        self.update()
+                    else:
+                        # Second click: set origin (badge position)
+                        self.annotation_placed.emit(
+                            self._pending_target[0], self._pending_target[1],
+                            norm[0], norm[1]
+                        )
+                        self._pending_target = None
+                        self._mouse_pos = None
                 return
 
             # Check if clicking on an annotation badge
@@ -308,11 +330,18 @@ class ImageCanvas(QWidget):
             self.update()
             return
 
+        # Update mouse pos for preview line during two-click annotation
+        if self._annotation_mode and self._pending_target is not None:
+            self._mouse_pos = QPointF(event.pos())
+            self.update()
+
         # Hover detection
         hit = self._hit_test(event.pos())
         if hit != self._hover_id:
             self._hover_id = hit
             self.update()
+
+        super().mouseMoveEvent(event)
 
         super().mouseMoveEvent(event)
 
@@ -339,19 +368,10 @@ class ImageCanvas(QWidget):
         """Check if pos hits an annotation badge or arrow line. Returns annotation id or None."""
         if not self._pixmap:
             return None
-        img_rect = self._image_rect()
-        margin_gap = 35
         p = QPointF(pos.x(), pos.y())
         for ann in self._annotations:
             target = self._normalised_to_widget(ann.target_x, ann.target_y)
-            if ann.margin_side == "left":
-                origin = QPointF(img_rect.left() - margin_gap, target.y())
-            elif ann.margin_side == "right":
-                origin = QPointF(img_rect.right() + margin_gap, target.y())
-            elif ann.margin_side == "top":
-                origin = QPointF(target.x(), img_rect.top() - margin_gap)
-            else:
-                origin = QPointF(target.x(), img_rect.bottom() + margin_gap)
+            origin = self._normalised_to_widget(ann.origin_x, ann.origin_y)
             # Hit badge
             if (p - origin).manhattanLength() < 16:
                 return ann.id
@@ -705,6 +725,8 @@ class TechnicalOverviewWidget(QWidget):
                 'id': ann.id,
                 'target_x': ann.target_x,
                 'target_y': ann.target_y,
+                'origin_x': ann.origin_x,
+                'origin_y': ann.origin_y,
                 'text': ann.text,
                 'margin_side': ann.margin_side,
                 'color': ann.color,
@@ -731,6 +753,8 @@ class TechnicalOverviewWidget(QWidget):
                 id=ad['id'],
                 target_x=ad['target_x'],
                 target_y=ad['target_y'],
+                origin_x=ad.get('origin_x', 0.0),
+                origin_y=ad.get('origin_y', 0.0),
                 text=ad.get('text', ''),
                 margin_side=ad.get('margin_side', 'left'),
                 color=ad.get('color', ARROW_COLOR),
@@ -787,9 +811,12 @@ class TechnicalOverviewWidget(QWidget):
             logger.error(f"Failed to render PDF: {e}")
             return None
 
-    def _on_annotation_placed(self, nx: float, ny: float):
-        side = ImageCanvas._best_margin_side(nx, ny)
-        ann = ArrowAnnotation(id=self._next_id, target_x=nx, target_y=ny, margin_side=side, created_at=datetime.now())
+    def _on_annotation_placed(self, tx: float, ty: float, ox: float, oy: float):
+        ann = ArrowAnnotation(
+            id=self._next_id, target_x=tx, target_y=ty,
+            origin_x=ox, origin_y=oy,
+            created_at=datetime.now()
+        )
         self._next_id += 1
         self._annotations.append(ann)
         self.canvas.set_annotations(self._annotations)
