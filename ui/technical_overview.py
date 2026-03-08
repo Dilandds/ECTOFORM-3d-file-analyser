@@ -36,6 +36,9 @@ class ArrowAnnotation:
     target_y: float
     text: str = ""
     margin_side: str = "left"  # which margin the arrow originates from
+    color: str = ARROW_COLOR  # per-annotation color
+    image_paths: list = field(default_factory=list)
+    label: str = "Point"
 
 
 class ImageCanvas(QWidget):
@@ -219,11 +222,18 @@ class ImageCanvas(QWidget):
         else:  # bottom
             origin = QPointF(target.x(), img_rect.bottom() + margin_gap)
 
-        # Draw line
-        color = QColor(ARROW_SELECTED_COLOR if is_selected else ARROW_COLOR)
-        if is_hovered and not is_selected:
-            color = color.lighter(120)
-        pen = QPen(color, 2.5 if is_selected else 2.0)
+        # Use per-annotation color
+        base_color = QColor(ann.color if ann.color else ARROW_COLOR)
+        if is_selected:
+            color = QColor(ARROW_SELECTED_COLOR)
+        elif is_hovered:
+            color = base_color.lighter(120)
+        else:
+            color = base_color
+
+        # Thicker line on hover or selected
+        line_width = 4.0 if is_hovered else (3.0 if is_selected else 2.0)
+        pen = QPen(color, line_width)
         painter.setPen(pen)
         painter.drawLine(origin, target)
 
@@ -234,7 +244,8 @@ class ImageCanvas(QWidget):
         badge_size = 22
         badge_rect = QRectF(origin.x() - badge_size / 2, origin.y() - badge_size / 2, badge_size, badge_size)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(color))
+        badge_color = QColor(ann.color if ann.color else ARROW_COLOR) if not is_selected else QColor(ARROW_SELECTED_COLOR)
+        painter.setBrush(QBrush(badge_color))
         painter.drawEllipse(badge_rect)
 
         painter.setPen(QColor(ARROW_BADGE_TEXT))
@@ -335,27 +346,42 @@ class ImageCanvas(QWidget):
             self.update()
 
     def _hit_test(self, pos) -> Optional[int]:
-        """Check if pos hits an annotation badge. Returns annotation id or None."""
+        """Check if pos hits an annotation badge or arrow line. Returns annotation id or None."""
         if not self._pixmap:
             return None
         img_rect = self._image_rect()
         margin_gap = 35
+        p = QPointF(pos.x(), pos.y())
         for ann in self._annotations:
+            target = self._normalised_to_widget(ann.target_x, ann.target_y)
             if ann.margin_side == "left":
-                origin = QPointF(img_rect.left() - margin_gap,
-                                 self._normalised_to_widget(ann.target_x, ann.target_y).y())
+                origin = QPointF(img_rect.left() - margin_gap, target.y())
             elif ann.margin_side == "right":
-                origin = QPointF(img_rect.right() + margin_gap,
-                                 self._normalised_to_widget(ann.target_x, ann.target_y).y())
+                origin = QPointF(img_rect.right() + margin_gap, target.y())
             elif ann.margin_side == "top":
-                origin = QPointF(self._normalised_to_widget(ann.target_x, ann.target_y).x(),
-                                 img_rect.top() - margin_gap)
+                origin = QPointF(target.x(), img_rect.top() - margin_gap)
             else:
-                origin = QPointF(self._normalised_to_widget(ann.target_x, ann.target_y).x(),
-                                 img_rect.bottom() + margin_gap)
-            if (QPointF(pos.x(), pos.y()) - origin).manhattanLength() < 16:
+                origin = QPointF(target.x(), img_rect.bottom() + margin_gap)
+            # Hit badge
+            if (p - origin).manhattanLength() < 16:
+                return ann.id
+            # Hit line (distance from point to line segment)
+            if self._point_line_distance(p, origin, target) < 6:
                 return ann.id
         return None
+
+    @staticmethod
+    def _point_line_distance(p: QPointF, a: QPointF, b: QPointF) -> float:
+        """Distance from point p to line segment a-b."""
+        import math
+        dx, dy = b.x() - a.x(), b.y() - a.y()
+        len_sq = dx * dx + dy * dy
+        if len_sq == 0:
+            return math.hypot(p.x() - a.x(), p.y() - a.y())
+        t = max(0, min(1, ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / len_sq))
+        proj_x = a.x() + t * dx
+        proj_y = a.y() + t * dy
+        return math.hypot(p.x() - proj_x, p.y() - proj_y)
 
     # ---- drag-drop ----
 
@@ -378,11 +404,14 @@ class ImageCanvas(QWidget):
 class TechnicalAnnotationPanel(QWidget):
     """
     Right-side panel listing arrow annotations for the Technical Overview.
-    Each annotation has a number, optional comment, and delete button.
+    Each annotation has a number, optional comment, color picker, and delete button.
+    Clicking a card opens the AnnotationPopup for text/image editing.
     """
     annotation_deleted = pyqtSignal(int)
     annotation_selected = pyqtSignal(int)
     annotation_comment_changed = pyqtSignal(int, str)
+    annotation_color_changed = pyqtSignal(int, str)  # id, hex color
+    open_popup_requested = pyqtSignal(int)  # annotation id
     exit_mode = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -403,7 +432,7 @@ class TechnicalAnnotationPanel(QWidget):
         header.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {default_theme.text_title};")
         layout.addWidget(header)
 
-        hint = QLabel("Click on the image to place arrow annotations")
+        hint = QLabel("Click on the image to place arrow annotations.\nClick a card to edit text & photos.")
         hint.setWordWrap(True)
         hint.setStyleSheet(f"font-size: 10px; color: {default_theme.text_secondary};")
         layout.addWidget(hint)
@@ -465,6 +494,8 @@ class TechnicalAnnotationPanel(QWidget):
             self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, card)
 
     def _create_card(self, ann: ArrowAnnotation, number: int) -> QFrame:
+        from PyQt5.QtWidgets import QColorDialog
+
         card = QFrame()
         card.setStyleSheet(f"""
             QFrame {{
@@ -483,13 +514,48 @@ class TechnicalAnnotationPanel(QWidget):
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(6)
 
+        # Color swatch button
+        color_btn = QPushButton()
+        color_btn.setFixedSize(20, 20)
+        color_btn.setCursor(Qt.PointingHandCursor)
+        color_btn.setToolTip("Change arrow color")
+        ann_color = ann.color or ARROW_COLOR
+        color_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ann_color};
+                border: 2px solid {default_theme.border_light};
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                border: 2px solid {default_theme.border_highlight};
+            }}
+        """)
+
+        def _pick_color(aid=ann.id, btn=color_btn):
+            c = QColorDialog.getColor(QColor(ann_color), self, "Arrow Color")
+            if c.isValid():
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {c.name()};
+                        border: 2px solid {default_theme.border_light};
+                        border-radius: 10px;
+                    }}
+                    QPushButton:hover {{
+                        border: 2px solid {default_theme.border_highlight};
+                    }}
+                """)
+                self.annotation_color_changed.emit(aid, c.name())
+
+        color_btn.clicked.connect(_pick_color)
+        layout.addWidget(color_btn)
+
         # Number badge
         badge = QLabel(str(number))
         badge.setFixedSize(24, 24)
         badge.setAlignment(Qt.AlignCenter)
         badge.setStyleSheet(f"""
             QLabel {{
-                background-color: {ARROW_BADGE_BG}; color: {ARROW_BADGE_TEXT};
+                background-color: {ann_color}; color: {ARROW_BADGE_TEXT};
                 border-radius: 12px; font-weight: bold; font-size: 11px;
             }}
         """)
@@ -498,12 +564,19 @@ class TechnicalAnnotationPanel(QWidget):
         # Text area
         info = QVBoxLayout()
         info.setSpacing(2)
-        label = QLabel(ann.text or f"Annotation {number}")
+        display_text = ann.text[:40] + "…" if len(ann.text) > 40 else (ann.text or f"Annotation {number}")
+        label = QLabel(display_text)
         label.setStyleSheet(f"font-size: 11px; color: {default_theme.text_primary}; border: none;")
         label.setWordWrap(True)
         info.addWidget(label)
 
+        # Show photo count if any
+        extras = []
+        if ann.image_paths:
+            extras.append(f"📷 {len(ann.image_paths)}")
         coord_text = f"({ann.target_x:.2f}, {ann.target_y:.2f})"
+        if extras:
+            coord_text += " · " + " ".join(extras)
         coord = QLabel(coord_text)
         coord.setStyleSheet(f"font-size: 9px; color: {default_theme.text_secondary}; border: none;")
         info.addWidget(coord)
@@ -523,8 +596,8 @@ class TechnicalAnnotationPanel(QWidget):
         del_btn.clicked.connect(lambda: self.annotation_deleted.emit(ann.id))
         layout.addWidget(del_btn, 0, Qt.AlignTop)
 
-        # Click to select
-        card.mousePressEvent = lambda e, aid=ann.id: self.annotation_selected.emit(aid)
+        # Click card to open popup (not on buttons)
+        card.mousePressEvent = lambda e, aid=ann.id: self.open_popup_requested.emit(aid)
 
         return card
 
@@ -569,6 +642,8 @@ class TechnicalOverviewWidget(QWidget):
         self.annotation_panel = TechnicalAnnotationPanel()
         self.annotation_panel.annotation_deleted.connect(self._on_delete_annotation)
         self.annotation_panel.annotation_selected.connect(self._on_annotation_selected)
+        self.annotation_panel.annotation_color_changed.connect(self._on_color_changed)
+        self.annotation_panel.open_popup_requested.connect(self._on_open_popup)
         self.annotation_panel.exit_mode.connect(self.exit_annotation_mode)
         self.annotation_panel.hide()
         layout.addWidget(self.annotation_panel)
@@ -655,6 +730,48 @@ class TechnicalOverviewWidget(QWidget):
 
     def _on_annotation_selected(self, ann_id: int):
         self.canvas.set_selected(ann_id)
+
+    def _on_color_changed(self, ann_id: int, color: str):
+        """Update an annotation's arrow color."""
+        for ann in self._annotations:
+            if ann.id == ann_id:
+                ann.color = color
+                break
+        self.canvas.set_annotations(self._annotations)
+        self.annotation_panel.refresh(self._annotations)
+
+    def _on_open_popup(self, ann_id: int):
+        """Open the AnnotationPopup for editing text and images on this arrow."""
+        ann = next((a for a in self._annotations if a.id == ann_id), None)
+        if not ann:
+            return
+        from datetime import datetime
+        from ui.annotation_popup import AnnotationPopup
+        display_number = self._annotations.index(ann) + 1
+        popup = AnnotationPopup(
+            annotation_id=ann.id,
+            point=(ann.target_x, ann.target_y),
+            text=ann.text,
+            image_paths=list(ann.image_paths),
+            label=ann.label,
+            created_at=datetime.now(),
+            display_number=display_number,
+            parent=self
+        )
+        popup.annotation_validated.connect(self._on_popup_validated)
+        popup.annotation_deleted.connect(self._on_delete_annotation)
+        popup.show()
+
+    def _on_popup_validated(self, ann_id: int, text: str, image_paths: list, label: str):
+        """Handle popup Done — save text, images, label back to the annotation."""
+        for ann in self._annotations:
+            if ann.id == ann_id:
+                ann.text = text
+                ann.image_paths = image_paths
+                ann.label = label
+                break
+        self.canvas.set_annotations(self._annotations)
+        self.annotation_panel.refresh(self._annotations)
 
     def _on_delete_annotation(self, ann_id: int):
         self._annotations = [a for a in self._annotations if a.id != ann_id]
