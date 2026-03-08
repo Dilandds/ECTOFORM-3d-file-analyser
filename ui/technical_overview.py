@@ -299,7 +299,19 @@ class ImageCanvas(QWidget):
             if self._annotation_mode:
                 norm = self._widget_to_normalised(QPointF(event.pos()))
                 if norm:
-                    self.annotation_placed.emit(norm[0], norm[1])
+                    if self._pending_target is None:
+                        # First click: set target (arrow tip)
+                        self._pending_target = norm
+                        self._mouse_pos = QPointF(event.pos())
+                        self.update()
+                    else:
+                        # Second click: set origin (badge position)
+                        self.annotation_placed.emit(
+                            self._pending_target[0], self._pending_target[1],
+                            norm[0], norm[1]
+                        )
+                        self._pending_target = None
+                        self._mouse_pos = None
                 return
 
             # Check if clicking on an annotation badge
