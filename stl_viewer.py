@@ -1684,6 +1684,11 @@ class STLViewerWindow(QMainWindow):
         
         try:
             from core.ecto_format import EctoFormat
+
+            # Check if this is a technical overview .ecto
+            if EctoFormat.is_technical_ecto(ecto_path):
+                self._load_technical_ecto(ecto_path)
+                return
             
             model_path, annotations, reader_mode, temp_dir = EctoFormat.import_ecto(ecto_path)
             
