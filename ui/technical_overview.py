@@ -36,6 +36,9 @@ class ArrowAnnotation:
     target_y: float
     text: str = ""
     margin_side: str = "left"  # which margin the arrow originates from
+    color: str = ARROW_COLOR  # per-annotation color
+    image_paths: list = field(default_factory=list)
+    label: str = "Point"
 
 
 class ImageCanvas(QWidget):

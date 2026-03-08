@@ -110,10 +110,34 @@ class TechnicalSidebar(QWidget):
         self.title_edit = _line_edit("e.g. HVAC Unit #12")
         layout.addWidget(self.title_edit)
 
-        # Manufacturer
-        layout.addWidget(_section_label("MANUFACTURER"))
-        self.manufacturer_edit = _line_edit("e.g. Carrier, Daikin")
-        layout.addWidget(self.manufacturer_edit)
+        # Manufacturer(s)
+        mfr_header = QHBoxLayout()
+        mfr_header.addWidget(_section_label("MANUFACTURER"))
+        mfr_header.addStretch()
+        add_mfr_btn = QPushButton("+")
+        add_mfr_btn.setFixedSize(20, 20)
+        add_mfr_btn.setCursor(Qt.PointingHandCursor)
+        add_mfr_btn.setToolTip("Add another manufacturer")
+        add_mfr_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {default_theme.button_primary};
+                border: none; border-radius: 10px;
+                color: white; font-size: 14px; font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {default_theme.button_primary_hover};
+            }}
+        """)
+        add_mfr_btn.clicked.connect(self._add_manufacturer_field)
+        mfr_header.addWidget(add_mfr_btn)
+        layout.addLayout(mfr_header)
+
+        self._manufacturer_container = QVBoxLayout()
+        self._manufacturer_container.setSpacing(4)
+        self._manufacturer_edits = []
+        first_mfr = self._create_manufacturer_row("e.g. Carrier, Daikin", removable=False)
+        self._manufacturer_container.addWidget(first_mfr)
+        layout.addLayout(self._manufacturer_container)
 
         # Dates
         layout.addWidget(_section_label("START DATE"))
