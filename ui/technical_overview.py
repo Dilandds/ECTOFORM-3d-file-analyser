@@ -128,7 +128,7 @@ class ImageCanvas(QWidget):
         return QRectF(x, y, scaled_w, scaled_h)
 
     def _widget_to_normalised(self, pos: QPointF) -> Optional[Tuple[float, float]]:
-        """Convert widget coords to normalised 0-1 image coords."""
+        """Convert widget coords to normalised 0-1 image coords (clamped to image)."""
         rect = self._image_rect()
         if rect.width() == 0 or rect.height() == 0:
             return None
@@ -137,6 +137,15 @@ class ImageCanvas(QWidget):
         if 0 <= nx <= 1 and 0 <= ny <= 1:
             return (nx, ny)
         return None
+
+    def _widget_to_normalised_unclamped(self, pos: QPointF) -> Optional[Tuple[float, float]]:
+        """Convert widget coords to normalised image coords (allows outside 0-1)."""
+        rect = self._image_rect()
+        if rect.width() == 0 or rect.height() == 0:
+            return None
+        nx = (pos.x() - rect.x()) / rect.width()
+        ny = (pos.y() - rect.y()) / rect.height()
+        return (nx, ny)
 
     def _normalised_to_widget(self, nx: float, ny: float) -> QPointF:
         rect = self._image_rect()
@@ -297,15 +306,17 @@ class ImageCanvas(QWidget):
                 return
 
             if self._annotation_mode:
-                norm = self._widget_to_normalised(QPointF(event.pos()))
-                if norm:
-                    if self._pending_target is None:
-                        # First click: set target (arrow tip)
+                if self._pending_target is None:
+                    # First click: target (arrow tip) — must be inside image
+                    norm = self._widget_to_normalised(QPointF(event.pos()))
+                    if norm:
                         self._pending_target = norm
                         self._mouse_pos = QPointF(event.pos())
                         self.update()
-                    else:
-                        # Second click: set origin (badge position)
+                else:
+                    # Second click: origin (badge) — allowed outside image
+                    norm = self._widget_to_normalised_unclamped(QPointF(event.pos()))
+                    if norm:
                         self.annotation_placed.emit(
                             self._pending_target[0], self._pending_target[1],
                             norm[0], norm[1]
