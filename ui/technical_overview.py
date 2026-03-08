@@ -92,6 +92,8 @@ class ImageCanvas(QWidget):
 
     def set_annotation_mode(self, enabled: bool):
         self._annotation_mode = enabled
+        self._pending_target = None  # reset two-click state
+        self._mouse_pos = None
         self.setCursor(Qt.CrossCursor if enabled else Qt.ArrowCursor)
         self.update()
 
