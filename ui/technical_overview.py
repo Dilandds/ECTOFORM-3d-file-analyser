@@ -811,9 +811,12 @@ class TechnicalOverviewWidget(QWidget):
             logger.error(f"Failed to render PDF: {e}")
             return None
 
-    def _on_annotation_placed(self, nx: float, ny: float):
-        side = ImageCanvas._best_margin_side(nx, ny)
-        ann = ArrowAnnotation(id=self._next_id, target_x=nx, target_y=ny, margin_side=side, created_at=datetime.now())
+    def _on_annotation_placed(self, tx: float, ty: float, ox: float, oy: float):
+        ann = ArrowAnnotation(
+            id=self._next_id, target_x=tx, target_y=ty,
+            origin_x=ox, origin_y=oy,
+            created_at=datetime.now()
+        )
         self._next_id += 1
         self._annotations.append(ann)
         self.canvas.set_annotations(self._annotations)
