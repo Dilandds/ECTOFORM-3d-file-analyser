@@ -313,6 +313,8 @@ class TechnicalSidebar(QWidget):
             if d.isValid():
                 self.deadline_date.setDate(d)
         self.comments_edit.setPlainText(meta.get('comments', ''))
+
+    def _create_manufacturer_row(self, placeholder: str, removable: bool = True):
         """Create a manufacturer input row, optionally with a remove button."""
         if not removable:
             le = _line_edit(placeholder)
