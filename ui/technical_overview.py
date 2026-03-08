@@ -716,6 +716,48 @@ class TechnicalOverviewWidget(QWidget):
     def _on_annotation_selected(self, ann_id: int):
         self.canvas.set_selected(ann_id)
 
+    def _on_color_changed(self, ann_id: int, color: str):
+        """Update an annotation's arrow color."""
+        for ann in self._annotations:
+            if ann.id == ann_id:
+                ann.color = color
+                break
+        self.canvas.set_annotations(self._annotations)
+        self.annotation_panel.refresh(self._annotations)
+
+    def _on_open_popup(self, ann_id: int):
+        """Open the AnnotationPopup for editing text and images on this arrow."""
+        ann = next((a for a in self._annotations if a.id == ann_id), None)
+        if not ann:
+            return
+        from datetime import datetime
+        from ui.annotation_popup import AnnotationPopup
+        display_number = self._annotations.index(ann) + 1
+        popup = AnnotationPopup(
+            annotation_id=ann.id,
+            point=(ann.target_x, ann.target_y),
+            text=ann.text,
+            image_paths=list(ann.image_paths),
+            label=ann.label,
+            created_at=datetime.now(),
+            display_number=display_number,
+            parent=self
+        )
+        popup.annotation_validated.connect(self._on_popup_validated)
+        popup.annotation_deleted.connect(self._on_delete_annotation)
+        popup.show()
+
+    def _on_popup_validated(self, ann_id: int, text: str, image_paths: list, label: str):
+        """Handle popup Done — save text, images, label back to the annotation."""
+        for ann in self._annotations:
+            if ann.id == ann_id:
+                ann.text = text
+                ann.image_paths = image_paths
+                ann.label = label
+                break
+        self.canvas.set_annotations(self._annotations)
+        self.annotation_panel.refresh(self._annotations)
+
     def _on_delete_annotation(self, ann_id: int):
         self._annotations = [a for a in self._annotations if a.id != ann_id]
         self.canvas.set_annotations(self._annotations)

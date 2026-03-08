@@ -243,10 +243,11 @@ class TechnicalSidebar(QWidget):
 
     def get_metadata(self) -> dict:
         """Return all metadata fields as a dict."""
+        manufacturers = [e.text().strip() for e in self._manufacturer_edits if e.text().strip()]
         return {
             "property": self.property_edit.text().strip(),
             "title": self.title_edit.text().strip(),
-            "manufacturer": self.manufacturer_edit.text().strip(),
+            "manufacturers": manufacturers,
             "start_date": self.start_date.date().toString(Qt.ISODate),
             "deadline": self.deadline_date.date().toString(Qt.ISODate),
             "comments": self.comments_edit.toPlainText().strip(),
@@ -256,8 +257,48 @@ class TechnicalSidebar(QWidget):
         """Clear all fields."""
         self.property_edit.clear()
         self.title_edit.clear()
-        self.manufacturer_edit.clear()
+        # Remove extra manufacturer rows, keep first
+        while len(self._manufacturer_edits) > 1:
+            row = self._manufacturer_edits.pop()
+            row.parent().deleteLater()
+        if self._manufacturer_edits:
+            self._manufacturer_edits[0].clear()
         self.start_date.setDate(QDate.currentDate())
         self.deadline_date.setDate(QDate.currentDate().addMonths(1))
         self.comments_edit.clear()
         self.set_annotation_mode(False)
+
+    def _create_manufacturer_row(self, placeholder: str, removable: bool = True) -> QWidget:
+        """Create a manufacturer input row, optionally with a remove button."""
+        if not removable:
+            le = _line_edit(placeholder)
+            self._manufacturer_edits.append(le)
+            return le
+        row = QWidget()
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(4)
+        le = _line_edit(placeholder)
+        self._manufacturer_edits.append(le)
+        rl.addWidget(le)
+        rm_btn = QPushButton("✕")
+        rm_btn.setFixedSize(20, 20)
+        rm_btn.setCursor(Qt.PointingHandCursor)
+        rm_btn.setStyleSheet("""
+            QPushButton { background-color: #FEE2E2; border: none; border-radius: 10px; color: #DC2626; font-size: 11px; font-weight: bold; }
+            QPushButton:hover { background-color: #FECACA; }
+        """)
+        rm_btn.clicked.connect(lambda: self._remove_manufacturer_row(row, le))
+        rl.addWidget(rm_btn)
+        return row
+
+    def _add_manufacturer_field(self):
+        """Add another manufacturer input row."""
+        row = self._create_manufacturer_row("e.g. Another manufacturer")
+        self._manufacturer_container.addWidget(row)
+
+    def _remove_manufacturer_row(self, row_widget, line_edit):
+        """Remove a manufacturer row."""
+        if line_edit in self._manufacturer_edits:
+            self._manufacturer_edits.remove(line_edit)
+        row_widget.deleteLater()
