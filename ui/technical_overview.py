@@ -725,6 +725,8 @@ class TechnicalOverviewWidget(QWidget):
                 'id': ann.id,
                 'target_x': ann.target_x,
                 'target_y': ann.target_y,
+                'origin_x': ann.origin_x,
+                'origin_y': ann.origin_y,
                 'text': ann.text,
                 'margin_side': ann.margin_side,
                 'color': ann.color,
