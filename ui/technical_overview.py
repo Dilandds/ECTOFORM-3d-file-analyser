@@ -368,19 +368,10 @@ class ImageCanvas(QWidget):
         """Check if pos hits an annotation badge or arrow line. Returns annotation id or None."""
         if not self._pixmap:
             return None
-        img_rect = self._image_rect()
-        margin_gap = 35
         p = QPointF(pos.x(), pos.y())
         for ann in self._annotations:
             target = self._normalised_to_widget(ann.target_x, ann.target_y)
-            if ann.margin_side == "left":
-                origin = QPointF(img_rect.left() - margin_gap, target.y())
-            elif ann.margin_side == "right":
-                origin = QPointF(img_rect.right() + margin_gap, target.y())
-            elif ann.margin_side == "top":
-                origin = QPointF(target.x(), img_rect.top() - margin_gap)
-            else:
-                origin = QPointF(target.x(), img_rect.bottom() + margin_gap)
+            origin = self._normalised_to_widget(ann.origin_x, ann.origin_y)
             # Hit badge
             if (p - origin).manhattanLength() < 16:
                 return ann.id
