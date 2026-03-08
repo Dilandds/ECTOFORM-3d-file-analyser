@@ -128,7 +128,7 @@ class ImageCanvas(QWidget):
         return QRectF(x, y, scaled_w, scaled_h)
 
     def _widget_to_normalised(self, pos: QPointF) -> Optional[Tuple[float, float]]:
-        """Convert widget coords to normalised 0-1 image coords."""
+        """Convert widget coords to normalised 0-1 image coords (clamped to image)."""
         rect = self._image_rect()
         if rect.width() == 0 or rect.height() == 0:
             return None
@@ -137,6 +137,15 @@ class ImageCanvas(QWidget):
         if 0 <= nx <= 1 and 0 <= ny <= 1:
             return (nx, ny)
         return None
+
+    def _widget_to_normalised_unclamped(self, pos: QPointF) -> Optional[Tuple[float, float]]:
+        """Convert widget coords to normalised image coords (allows outside 0-1)."""
+        rect = self._image_rect()
+        if rect.width() == 0 or rect.height() == 0:
+            return None
+        nx = (pos.x() - rect.x()) / rect.width()
+        ny = (pos.y() - rect.y()) / rect.height()
+        return (nx, ny)
 
     def _normalised_to_widget(self, nx: float, ny: float) -> QPointF:
         rect = self._image_rect()
