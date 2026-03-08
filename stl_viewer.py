@@ -314,6 +314,8 @@ class STLViewerWindow(QMainWindow):
         self.technical_sidebar.annotate_toggled.connect(self._tech_toggle_annotation)
         self.technical_sidebar.export_requested.connect(self._tech_export_ecto)
         self.technical_sidebar.export_pdf_requested.connect(self._tech_export_pdf)
+        self.technical_sidebar.reset_requested.connect(self._tech_reset)
+        self._tech_ecto_exported = False
         tech_layout.addWidget(self.technical_sidebar)
         
         self.technical_overview = TechnicalOverviewWidget()
@@ -431,6 +433,7 @@ class STLViewerWindow(QMainWindow):
             passcode_hash=passcode_hash,
         )
         if success:
+            self._tech_ecto_exported = True
             QMessageBox.information(self, "Export Successful",
                                     f"Technical overview exported to:\n{msg}")
         else:
@@ -468,6 +471,30 @@ class STLViewerWindow(QMainWindow):
             QMessageBox.information(self, "PDF Exported", f"Report saved to:\n{msg}")
         else:
             QMessageBox.critical(self, "Export Failed", f"Error: {msg}")
+
+    def _tech_reset(self):
+        """Reset the technical overview workspace with unsaved-changes warning."""
+        has_content = (
+            self.technical_overview.get_annotations()
+            or self.technical_overview.get_document_path()
+        )
+
+        if has_content and not self._tech_ecto_exported:
+            reply = QMessageBox.warning(
+                self, "Unsaved Changes",
+                "You have not exported this workspace as an .ecto file.\n\n"
+                "All annotations, metadata, and the loaded document will be lost.\n\n"
+                "Do you want to reset anyway?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        # Reset everything
+        self.technical_overview.clear_all()
+        self.technical_overview.canvas.clear_image()
+        self.technical_sidebar.reset()
+        self._tech_ecto_exported = False
 
     # ======================== Tab Management ========================
     
