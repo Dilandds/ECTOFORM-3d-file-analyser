@@ -672,6 +672,7 @@ class TechnicalOverviewWidget(QWidget):
 
     def load_image_from_path(self, path: str):
         """Load an image (or first page of PDF) from a file path."""
+        self._document_path = path  # remember for export
         if path.lower().endswith('.pdf'):
             pixmap = self._load_pdf_first_page(path)
         else:
