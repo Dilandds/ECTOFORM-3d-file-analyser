@@ -627,6 +627,8 @@ class TechnicalOverviewWidget(QWidget):
         self.annotation_panel = TechnicalAnnotationPanel()
         self.annotation_panel.annotation_deleted.connect(self._on_delete_annotation)
         self.annotation_panel.annotation_selected.connect(self._on_annotation_selected)
+        self.annotation_panel.annotation_color_changed.connect(self._on_color_changed)
+        self.annotation_panel.open_popup_requested.connect(self._on_open_popup)
         self.annotation_panel.exit_mode.connect(self.exit_annotation_mode)
         self.annotation_panel.hide()
         layout.addWidget(self.annotation_panel)
