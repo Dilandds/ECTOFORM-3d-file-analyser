@@ -83,13 +83,14 @@ class TechnicalSidebar(QWidget):
         self.upload_btn.setCursor(Qt.PointingHandCursor)
         self.upload_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {default_theme.button_primary};
-                border: none; border-radius: 6px;
+                background-color: {default_theme.row_bg_standard};
+                border: 1px solid {default_theme.border_light};
+                border-radius: 6px;
                 padding: 6px 12px; font-size: 11px; font-weight: bold;
-                color: white;
+                color: {default_theme.text_primary};
             }}
             QPushButton:hover {{
-                background-color: {default_theme.button_primary_hover};
+                background-color: {default_theme.row_bg_hover};
             }}
         """)
         self.upload_btn.clicked.connect(lambda: self.upload_requested.emit())

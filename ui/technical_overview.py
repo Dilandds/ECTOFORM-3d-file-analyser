@@ -507,12 +507,9 @@ class TechnicalAnnotationPanel(QWidget):
         card.installEventFilter(self)
         card.setStyleSheet(f"""
             QFrame {{
-                background-color: {default_theme.row_bg_standard};
+                background-color: #F0F7FF;
                 border: 1px solid {default_theme.border_light};
                 border-radius: 6px;
-            }}
-            QFrame:hover {{
-                background-color: {default_theme.row_bg_hover};
             }}
         """)
         card.setCursor(Qt.PointingHandCursor)
