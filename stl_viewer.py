@@ -1867,6 +1867,13 @@ class STLViewerWindow(QMainWindow):
                     EctoFormat.cleanup_temp_dir(tab.ecto_temp_dir)
                 except Exception:
                     pass
+        # Cleanup technical overview temp dir
+        if hasattr(self, '_tech_ecto_temp_dir') and self._tech_ecto_temp_dir:
+            try:
+                from core.ecto_format import EctoFormat
+                EctoFormat.cleanup_temp_dir(self._tech_ecto_temp_dir)
+            except Exception:
+                pass
         super().closeEvent(event)
 
 
