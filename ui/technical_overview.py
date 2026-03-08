@@ -244,7 +244,8 @@ class ImageCanvas(QWidget):
         badge_size = 22
         badge_rect = QRectF(origin.x() - badge_size / 2, origin.y() - badge_size / 2, badge_size, badge_size)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(color))
+        badge_color = QColor(ann.color if ann.color else ARROW_COLOR) if not is_selected else QColor(ARROW_SELECTED_COLOR)
+        painter.setBrush(QBrush(badge_color))
         painter.drawEllipse(badge_rect)
 
         painter.setPen(QColor(ARROW_BADGE_TEXT))
