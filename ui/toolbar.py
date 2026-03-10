@@ -329,6 +329,11 @@ class ViewControlsToolbar(QWidget):
         self.screenshot_btn.setEnabled(False)  # Disabled until model is loaded
         content_layout.addWidget(self.screenshot_btn)
         
+        self.draw_btn = ToolbarButton("🖊", "Draw ▼", "Freehand draw on model surface")
+        self.draw_btn.clicked.connect(self._on_draw_clicked)
+        self.draw_btn.setEnabled(False)  # Disabled until model is loaded
+        content_layout.addWidget(self.draw_btn)
+        
         self.fullscreen_btn = ToolbarButton("⛶", "Fullscreen", "")
         self.fullscreen_btn.clicked.connect(self._on_fullscreen_clicked)
         content_layout.addWidget(self.fullscreen_btn)
