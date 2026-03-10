@@ -238,6 +238,8 @@ class ViewControlsToolbar(QWidget):
         self.ruler_mode_enabled = False
         self.annotation_mode_enabled = False
         self.screenshot_mode_enabled = False
+        self.draw_mode_enabled = False
+        self._draw_color = '#FF0000'
         self.stl_loaded = False
         
         # Load saved state
