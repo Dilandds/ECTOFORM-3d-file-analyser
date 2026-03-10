@@ -649,6 +649,7 @@ class STLViewerWindow(QMainWindow):
         tab.ruler_active = self.toolbar.ruler_mode_enabled
         tab.annotation_mode_active = self.toolbar.annotation_mode_enabled
         tab.screenshot_mode_active = self.toolbar.screenshot_mode_enabled
+        tab.draw_mode_active = self.toolbar.draw_mode_enabled
     
     def _on_tab_close_requested(self, index: int):
         """Handle tab close button click."""
