@@ -173,6 +173,15 @@ class STLViewerWidget(QWidget):
         self._screenshot_overlay = None
         self.screenshot_taken = None  # will be set as pyqtSignal-like callback
 
+        # Draw mode state
+        self.draw_mode = False
+        self._draw_color = '#FF0000'
+        self._draw_strokes = []  # list of pygfx.Line objects in scene
+        self._current_stroke_points = []  # points being drawn
+        self._current_stroke_line = None  # live preview line
+        self._draw_event_filter_installed = False
+        self._drawing_active = False  # True while mouse button is held
+
         # Zoom buttons overlay (shown in screenshot mode) - bottom-left
         from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QLabel
         from PyQt5.QtGui import QIcon
