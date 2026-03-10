@@ -1366,6 +1366,47 @@ class STLViewerWindow(QMainWindow):
         self.toolbar.reset_screenshot_state()
         logger.info("_exit_screenshot_mode: Screenshot mode disabled")
 
+    # ========== Draw Mode Methods ==========
+    
+    def _toggle_draw_mode(self):
+        """Toggle freehand draw mode."""
+        vw = self.viewer_widget
+        if vw is None:
+            return
+        if self.toolbar.draw_mode_enabled:
+            if hasattr(vw, 'enable_draw_mode'):
+                success = vw.enable_draw_mode()
+                if success:
+                    # Exit other modes
+                    if self.toolbar.ruler_mode_enabled:
+                        self._exit_ruler_mode()
+                    if self.toolbar.annotation_mode_enabled:
+                        self._exit_annotation_mode()
+                    if self.toolbar.screenshot_mode_enabled:
+                        self._exit_screenshot_mode()
+                    # Show color picker on first enable
+                    self.toolbar.show_draw_color_picker()
+                    logger.info("_toggle_draw_mode: Draw mode enabled")
+                else:
+                    self.toolbar.reset_draw_state()
+                    logger.warning("_toggle_draw_mode: Failed to enable draw mode")
+        else:
+            self._exit_draw_mode()
+    
+    def _exit_draw_mode(self):
+        """Exit draw mode."""
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'disable_draw_mode'):
+            vw.disable_draw_mode()
+        self.toolbar.reset_draw_state()
+        logger.info("_exit_draw_mode: Draw mode disabled")
+    
+    def _on_draw_color_changed(self, color: str):
+        """Handle draw color change from toolbar."""
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'set_draw_color'):
+            vw.set_draw_color(color)
+
     
     def _on_screenshot_captured(self, pixmap):
         """Handle a captured screenshot from the viewer overlay."""
