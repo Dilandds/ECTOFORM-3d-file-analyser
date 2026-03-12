@@ -1268,7 +1268,7 @@ class SidebarPanel(QWidget):
         logger.info("reset_all_data: All sidebar data reset")
 
     def create_converter_section(self):
-        """Create the file format converter section."""
+        """Create the file format converter section with smart format detection."""
         card = QFrame()
         card.setObjectName("converterCard")
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
@@ -1287,19 +1287,17 @@ class SidebarPanel(QWidget):
         card_layout.addWidget(title_label)
 
         # Subtitle
-        subtitle = QLabel("Convert between 3D file formats")
+        subtitle = QLabel("Select a file to see available conversions")
         subtitle.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 11px; margin-bottom: 6px;")
         card_layout.addWidget(subtitle)
 
-        # Converter buttons
-        converters = [
-            ("3DM  →  STEP", self._convert_3dm_to_step),
-            ("3DM  →  STL", self._convert_3dm_to_stl),
-            ("STEP  →  STL", self._convert_step_to_stl),
-        ]
-
-        btn_style = f"""
-            QPushButton {{
+        # Select file button
+        self._converter_select_btn = QPushButton("Select Source File…")
+        self._converter_select_btn.setObjectName("converterSelectBtn")
+        self._converter_select_btn.setMinimumHeight(40)
+        self._converter_select_btn.setCursor(Qt.PointingHandCursor)
+        self._converter_select_btn.setStyleSheet(f"""
+            QPushButton#converterSelectBtn {{
                 background-color: {default_theme.button_bg};
                 color: {default_theme.text_primary};
                 border: 1px solid {default_theme.border};
@@ -1309,73 +1307,134 @@ class SidebarPanel(QWidget):
                 font-weight: 600;
                 text-align: left;
             }}
-            QPushButton:hover {{
+            QPushButton#converterSelectBtn:hover {{
                 background-color: {default_theme.button_hover};
                 border-color: {default_theme.accent};
             }}
-            QPushButton:pressed {{
-                background-color: {default_theme.button_pressed};
-            }}
-        """
+        """)
+        self._converter_select_btn.clicked.connect(self._select_converter_source)
+        card_layout.addWidget(self._converter_select_btn)
 
-        for label, handler in converters:
-            btn = QPushButton(label)
-            btn.setMinimumHeight(40)
-            btn.setStyleSheet(btn_style)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.clicked.connect(handler)
-            card_layout.addWidget(btn)
+        # Selected file label
+        self._converter_file_label = QLabel("")
+        self._converter_file_label.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 11px;")
+        self._converter_file_label.setWordWrap(True)
+        self._converter_file_label.hide()
+        card_layout.addWidget(self._converter_file_label)
+
+        # Conversion options dropdown
+        self._converter_combo = QComboBox()
+        self._converter_combo.setObjectName("converterCombo")
+        self._converter_combo.setMinimumHeight(40)
+        self._converter_combo.setPlaceholderText("Select conversion…")
+        self._converter_combo.hide()
+        card_layout.addWidget(self._converter_combo)
+
+        # Convert button
+        self._converter_run_btn = QPushButton("Convert")
+        self._converter_run_btn.setObjectName("converterRunBtn")
+        self._converter_run_btn.setMinimumHeight(40)
+        self._converter_run_btn.setCursor(Qt.PointingHandCursor)
+        self._converter_run_btn.setStyleSheet(f"""
+            QPushButton#converterRunBtn {{
+                background-color: {default_theme.accent};
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 16px;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            QPushButton#converterRunBtn:hover {{
+                background-color: {default_theme.button_hover};
+            }}
+            QPushButton#converterRunBtn:disabled {{
+                background-color: {default_theme.border};
+                color: {default_theme.text_secondary};
+            }}
+        """)
+        self._converter_run_btn.clicked.connect(self._run_selected_conversion)
+        self._converter_run_btn.hide()
+        card_layout.addWidget(self._converter_run_btn)
+
+        # Internal state
+        self._converter_source_path = None
+
+        # Conversion map: source_ext -> list of (label, output_ext, conversion_type)
+        self._conversion_map = {
+            '.3dm': [
+                ("3DM → STEP", ".step", "3dm_to_step"),
+                ("3DM → STL", ".stl", "3dm_to_stl"),
+            ],
+            '.step': [
+                ("STEP → STL", ".stl", "step_to_stl"),
+            ],
+            '.stp': [
+                ("STEP → STL", ".stl", "step_to_stl"),
+            ],
+        }
 
         self._add_card_shadow(card)
         return card
 
-    def _convert_3dm_to_step(self):
-        """Handle 3DM → STEP conversion."""
+    def _select_converter_source(self):
+        """Open file dialog to select source file for conversion."""
         input_path, _ = QFileDialog.getOpenFileName(
-            self, "Select 3DM File", "", "Rhino 3DM Files (*.3dm)"
+            self, "Select File to Convert", "",
+            "Supported Files (*.3dm *.step *.stp);;Rhino 3DM (*.3dm);;STEP Files (*.step *.stp)"
         )
         if not input_path:
             return
 
+        ext = os.path.splitext(input_path)[1].lower()
+        options = self._conversion_map.get(ext, [])
+
+        self._converter_source_path = input_path
+        filename = os.path.basename(input_path)
+        self._converter_file_label.setText(f"📄 {filename}")
+        self._converter_file_label.show()
+
+        self._converter_combo.clear()
+        if options:
+            for label, output_ext, conv_type in options:
+                self._converter_combo.addItem(label, (output_ext, conv_type))
+            self._converter_combo.show()
+            self._converter_run_btn.show()
+            self._converter_run_btn.setEnabled(True)
+        else:
+            self._converter_combo.hide()
+            self._converter_run_btn.hide()
+            QMessageBox.warning(
+                self, "Unsupported Format",
+                f"No conversions available for '{ext}' files.\n\nSupported source formats: .3dm, .step, .stp"
+            )
+
+    def _run_selected_conversion(self):
+        """Run the conversion selected in the dropdown."""
+        if not self._converter_source_path or self._converter_combo.currentIndex() < 0:
+            return
+
+        data = self._converter_combo.currentData()
+        if not data:
+            return
+
+        output_ext, conversion_type = data
+        label = self._converter_combo.currentText()
+        default_output = os.path.splitext(self._converter_source_path)[0] + output_ext
+
+        # Map extensions to save dialog filters
+        ext_filters = {
+            ".step": "STEP Files (*.step *.stp)",
+            ".stl": "STL Files (*.stl)",
+        }
+
         output_path, _ = QFileDialog.getSaveFileName(
-            self, "Save STEP File", os.path.splitext(input_path)[0] + ".step", "STEP Files (*.step *.stp)"
+            self, f"Save {label} Output", default_output, ext_filters.get(output_ext, "All Files (*)")
         )
         if not output_path:
             return
 
-        self._run_conversion("3DM → STEP", input_path, output_path, "3dm_to_step")
-
-    def _convert_3dm_to_stl(self):
-        """Handle 3DM → STL conversion."""
-        input_path, _ = QFileDialog.getOpenFileName(
-            self, "Select 3DM File", "", "Rhino 3DM Files (*.3dm)"
-        )
-        if not input_path:
-            return
-
-        output_path, _ = QFileDialog.getSaveFileName(
-            self, "Save STL File", os.path.splitext(input_path)[0] + ".stl", "STL Files (*.stl)"
-        )
-        if not output_path:
-            return
-
-        self._run_conversion("3DM → STL", input_path, output_path, "3dm_to_stl")
-
-    def _convert_step_to_stl(self):
-        """Handle STEP → STL conversion."""
-        input_path, _ = QFileDialog.getOpenFileName(
-            self, "Select STEP File", "", "STEP Files (*.step *.stp)"
-        )
-        if not input_path:
-            return
-
-        output_path, _ = QFileDialog.getSaveFileName(
-            self, "Save STL File", os.path.splitext(input_path)[0] + ".stl", "STL Files (*.stl)"
-        )
-        if not output_path:
-            return
-
-        self._run_conversion("STEP → STL", input_path, output_path, "step_to_stl")
+        self._run_conversion(label, self._converter_source_path, output_path, conversion_type)
 
     def _run_conversion(self, label, input_path, output_path, conversion_type):
         """Run a file conversion with progress feedback."""
