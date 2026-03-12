@@ -1330,6 +1330,34 @@ class SidebarPanel(QWidget):
         self._converter_combo.setObjectName("converterCombo")
         self._converter_combo.setMinimumHeight(40)
         self._converter_combo.setPlaceholderText("Select conversion…")
+        self._converter_combo.setStyleSheet(f"""
+            QComboBox#converterCombo {{
+                background-color: {default_theme.input_bg};
+                color: {default_theme.text_primary};
+                border: 1px solid {default_theme.input_border};
+                border-radius: 6px;
+                padding: 10px 12px;
+                font-size: 13px;
+            }}
+            QComboBox#converterCombo:hover {{
+                border: 1px solid {default_theme.input_border_hover};
+            }}
+            QComboBox#converterCombo::drop-down {{
+                border: none;
+                border-left: 1px solid {default_theme.input_border};
+                width: 32px;
+            }}
+            QComboBox#converterCombo QAbstractItemView {{
+                background-color: {default_theme.input_bg};
+                color: {default_theme.text_primary};
+                border: 1px solid {default_theme.input_border};
+                border-radius: 6px;
+                selection-background-color: {default_theme.row_bg_standard};
+                selection-color: {default_theme.text_primary};
+                padding: 8px 12px;
+                outline: none;
+            }}
+        """)
         self._converter_combo.hide()
         card_layout.addWidget(self._converter_combo)
 
@@ -1352,7 +1380,7 @@ class SidebarPanel(QWidget):
                 background-color: {default_theme.button_primary_hover};
             }}
             QPushButton#converterRunBtn:disabled {{
-                background-color: {default_theme.border};
+                background-color: {default_theme.border_standard};
                 color: {default_theme.text_secondary};
             }}
         """)
@@ -1401,6 +1429,7 @@ class SidebarPanel(QWidget):
         if options:
             for label, output_ext, conv_type in options:
                 self._converter_combo.addItem(label, (output_ext, conv_type))
+            self._converter_combo.setCurrentIndex(0)
             self._converter_combo.show()
             self._converter_run_btn.show()
             self._converter_run_btn.setEnabled(True)
