@@ -367,7 +367,7 @@ class STLViewerWidget(QWidget):
                 return False
 
         file_ext = file_path.lower()
-        supported = ('.stl', '.obj', '.ply', '.step', '.stp', '.3dm', '.iges', '.igs')
+        supported = ('.stl', '.obj', '.ply', '.step', '.stp', '.3dm', '.iges', '.igs', '.dxf')
         if not any(file_ext.endswith(ext) for ext in supported):
             logger.warning(f"load_stl (pygfx): Unsupported format, got {file_ext}")
             return False
