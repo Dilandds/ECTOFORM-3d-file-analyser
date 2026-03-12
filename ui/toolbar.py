@@ -747,9 +747,18 @@ class ViewControlsToolbar(QWidget):
     def reset_annotation_state(self):
         """Reset annotation button state (called when exiting annotation mode externally)."""
         self.annotation_mode_enabled = False
-        self.annotation_btn.set_label("Annotate")
+        self.arrow_mode_enabled = False
+        self.annotation_btn.set_label("Annotate ▼")
         self.annotation_btn.set_icon("📝")
         self.annotation_btn.set_active(False)
+
+    def reset_arrow_state(self):
+        """Reset arrow button state (called when exiting arrow mode externally)."""
+        self.arrow_mode_enabled = False
+        if not self.annotation_mode_enabled:
+            self.annotation_btn.set_label("Annotate ▼")
+            self.annotation_btn.set_icon("📝")
+            self.annotation_btn.set_active(False)
     
     def reset_screenshot_state(self):
         """Reset screenshot button state (called when exiting screenshot mode externally)."""
