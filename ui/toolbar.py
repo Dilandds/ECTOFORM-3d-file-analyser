@@ -319,10 +319,10 @@ class ViewControlsToolbar(QWidget):
         
         _anno_icon = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "assets", "annotation_icon.png"))
         self.annotation_btn = ToolbarButton(
-            "📝", "Annotate", "Add annotations to the model",
+            "📝", "Annotate ▼", "Add annotations or 3D arrows",
             icon_path=_anno_icon if os.path.exists(_anno_icon) else None
         )
-        self.annotation_btn.clicked.connect(self._on_annotation_clicked)
+        self.annotation_btn.clicked.connect(self._show_annotate_menu)
         self.annotation_btn.setEnabled(False)  # Disabled until model is loaded
         content_layout.addWidget(self.annotation_btn)
         
