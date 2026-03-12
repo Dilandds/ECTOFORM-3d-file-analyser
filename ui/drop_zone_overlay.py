@@ -115,7 +115,7 @@ class DropZoneOverlay(QWidget):
             if urls and len(urls) == 1:
                 file_path = urls[0].toLocalFile()
                 file_ext = file_path.lower()
-                if file_ext.endswith('.stl') or file_ext.endswith('.step') or file_ext.endswith('.stp') or file_ext.endswith('.3dm') or file_ext.endswith('.obj') or file_ext.endswith('.iges') or file_ext.endswith('.igs') or file_ext.endswith('.ecto'):
+                if file_ext.endswith('.stl') or file_ext.endswith('.step') or file_ext.endswith('.stp') or file_ext.endswith('.3dm') or file_ext.endswith('.obj') or file_ext.endswith('.iges') or file_ext.endswith('.igs') or file_ext.endswith('.ecto') or file_ext.endswith('.dxf'):
                     event.acceptProposedAction()
                     self._is_dragging = True
                     self._update_dragging_state(True)
