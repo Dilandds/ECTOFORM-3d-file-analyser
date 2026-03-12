@@ -238,6 +238,7 @@ class ViewControlsToolbar(QWidget):
         self.is_fullscreen = False
         self.ruler_mode_enabled = False
         self.annotation_mode_enabled = False
+        self.arrow_mode_enabled = False
         self.screenshot_mode_enabled = False
         self.draw_mode_enabled = False
         self._draw_color = '#FF0000'
