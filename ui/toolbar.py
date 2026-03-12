@@ -221,6 +221,7 @@ class ViewControlsToolbar(QWidget):
     toggle_fullscreen = pyqtSignal()
     toggle_ruler = pyqtSignal()
     toggle_annotation = pyqtSignal()
+    toggle_arrow = pyqtSignal()
     toggle_screenshot = pyqtSignal()
     toggle_draw = pyqtSignal()
     draw_color_changed = pyqtSignal(str)  # hex color
