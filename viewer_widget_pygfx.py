@@ -402,6 +402,29 @@ class STLViewerWidget(QWidget):
                         return True
                 return False
 
+            def _split_reasonable_components(source_mesh):
+                """Split mesh into connected components, with guardrails against triangle-explosion meshes."""
+                try:
+                    components = list(source_mesh.split(only_watertight=False))
+                except Exception:
+                    return [source_mesh]
+
+                components = [
+                    c for c in components
+                    if isinstance(c, trimesh.Trimesh) and len(c.vertices) > 0 and len(c.faces) > 0
+                ]
+                if len(components) <= 1:
+                    return components if components else [source_mesh]
+
+                # Some CAD conversions duplicate vertices per face; splitting then creates one-part-per-triangle.
+                # In those cases, keep the mesh as a single part to avoid unusable UI.
+                if len(components) > 400:
+                    return [source_mesh]
+                if len(components) > max(50, int(len(source_mesh.faces) * 0.15)):
+                    return [source_mesh]
+
+                return components
+
             # STEP
             if file_ext.endswith('.step') or file_ext.endswith('.stp'):
                 logger.info("load_stl (pygfx): Loading STEP with StepLoader...")
