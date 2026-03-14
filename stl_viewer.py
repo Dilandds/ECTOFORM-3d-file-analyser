@@ -532,9 +532,15 @@ class STLViewerWindow(QMainWindow):
         tab.annotation_panel.hide()
         self._connect_annotation_panel_signals_for(tab)
         
+        # Create arrow panel
+        tab.arrow_panel = ArrowPanel()
+        tab.arrow_panel.hide()
+        self._connect_arrow_panel_signals_for(tab)
+        
         # Add to stacks
         self.viewer_stack.addWidget(tab.viewer_widget)
         self.annotation_stack.addWidget(tab.annotation_panel)
+        self.arrow_stack.addWidget(tab.arrow_panel)
         
         # Add to tabs list
         self.tabs.append(tab)
