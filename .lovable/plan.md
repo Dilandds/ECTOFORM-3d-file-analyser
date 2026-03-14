@@ -1,77 +1,48 @@
 
-# Multi-Tab Support for ECTOFORM
+
+# Plan: Arrow Manipulator Control Panel
 
 ## Overview
-Add a tab bar to the main window so users can open multiple 3D files simultaneously, each in its own tab with independent viewer, sidebar data, and annotations.
 
-## Architecture
+Replace the current "click-to-place + drag-to-rotate" arrow behavior with a proper control panel workflow. Users click on the model surface to place an arrow, then use a dedicated control panel (similar to the annotation panel) to select, rotate, resize, and move arrows using buttons. Free-space clicks allow normal camera orbit.
 
-```text
-+----------------------------------------------------------+
-| ECTOFORM - Tab Bar                                        |
-| [Model1.stl  x] [Model2.step  x] [+]                    |
-+----------------------------------------------------------+
-| Sidebar  |  Toolbar                                       |
-|          |  Ruler Toolbar (if active)                     |
-|          +-----------------------------------------------+
-|          |  3D Viewer + Annotation Panel                  |
-|          |  (per-tab content)                             |
-+----------------------------------------------------------+
-```
+## Design
 
-## Implementation Plan
+### Arrow Control Panel (`ui/arrow_panel.py` — New File)
 
-### 1. Create a Tab Data class to hold per-tab state
-- Create a dataclass or simple class (`TabState`) that stores:
-  - `file_path` -- the loaded file
-  - `viewer_widget` -- its own `STLViewerWidget` instance
-  - `annotation_panel` -- its own `AnnotationPanel` instance
-  - `sidebar_data` -- cached mesh data / dimensions for restoring sidebar
-  - `annotations` -- list of annotations
-  - `ruler_active` / `annotation_mode_active` -- mode flags
-  - `mesh` reference
+A right-side panel (like `AnnotationPanel`) that appears when arrow mode is active. Contains:
 
-### 2. Add QTabBar to the right container
-- Insert a `QTabBar` above the toolbar in the right panel layout
-- Style it to match the dark ECTOFORM theme
-- Each tab shows the filename with a close button
-- A "+" button at the end to open a new file
-- When no files are loaded, show a single "Untitled" tab with the drop zone
+- **Arrow list**: Scrollable list of placed arrows (Arrow 1, Arrow 2, ...) with select/delete buttons per row
+- **Selected arrow controls** (enabled when an arrow is selected):
+  - **Rotation**: 6 buttons — Rotate Left/Right (around Y), Rotate Up/Down (around X), Tilt CW/CCW (around Z). Each click rotates by a fixed increment (e.g. 15°).
+  - **Size**: Two buttons — Lengthen (+) / Shorten (−). Each click scales by ~10%.
+  - **Move**: 6 buttons — Move along X+/X−, Y+/Y−, Z+/Z− (move the arrow base position in world space by a small increment relative to model size).
+  - **Color picker**: Small color swatch button to change selected arrow's color.
+- **Bottom actions**: "Clear All" and "Undo Last" buttons.
 
-### 3. Refactor STLViewerWindow to manage multiple tabs
-- Replace the single `self.viewer_widget` with a `QStackedWidget` that holds one viewer per tab
-- Maintain a list of `TabState` objects (`self.tabs`)
-- Track `self.current_tab_index`
-- When switching tabs:
-  - Save current tab's mode states (ruler, annotation)
-  - Hide current viewer, show new tab's viewer
-  - Update sidebar panel with the new tab's mesh data
-  - Update toolbar state (loaded filename, enabled controls)
-  - Restore ruler/annotation mode if it was active on that tab
+### Changes to `viewer_widget_pygfx.py`
 
-### 4. Modify file loading to create new tabs
-- `upload_stl_file()` and `_load_dropped_file()`: instead of replacing the current model, create a new tab with a fresh `STLViewerWidget` and load the file into it
-- If the current tab is empty (no file loaded), reuse it instead of creating a new tab
-- Connect all signals (drag-drop, click-to-upload, etc.) for each new viewer widget
+- **Remove drag-to-orient on place**: After placing an arrow, don't capture drag. Arrow is placed with surface normal direction, user adjusts via panel buttons.
+- **Add methods**: `rotate_arrow(arrow_id, axis, angle_deg)`, `scale_arrow(arrow_id, factor)`, `move_arrow(arrow_id, dx, dy, dz)`, `set_arrow_color(arrow_id, color)`, `get_arrow_list()` (returns list of {id, point, direction, length_factor}).
+- Keep existing `remove_arrow`, `clear_all_arrows`, `undo_last_arrow`.
 
-### 5. Add tab close functionality
-- Close button on each tab removes the tab, destroys its viewer widget, and cleans up state
-- If the last tab is closed, create a new empty tab with the drop zone
-- Prompt to save unsaved annotations before closing a tab
+### Changes to `stl_viewer.py`
 
-### 6. Update sidebar to reflect active tab
-- When switching tabs, call `self.sidebar_panel.update_dimensions()` with the active tab's cached mesh data
-- Clear sidebar if switching to an empty tab
+- Import and instantiate `ArrowPanel` per tab (similar to `AnnotationPanel`).
+- Add `ArrowPanel` to a stack in `right_panel_stack` (or reuse `annotation_stack` pattern).
+- When arrow mode is toggled on, show the arrow panel; when toggled off, hide it.
+- Wire panel signals to viewer methods.
+- Add `arrow_panel` to `TabState`.
 
-## Technical Details
+### Changes to `ui/toolbar.py`
 
-### Files to modify:
-- **`stl_viewer.py`** -- Major refactor: add `QTabBar`, `QStackedWidget`, `TabState` management, modify all file-loading and mode-toggling methods to be tab-aware
-- **`ui/styles.py`** -- Add tab bar styling to match the ECTOFORM theme
+- No structural changes needed. The existing dropdown menu item "3D Arrow" continues to toggle arrow mode.
 
-### Key considerations:
-- Each tab gets its own `STLViewerWidget` instance (pygfx context), which may use significant GPU memory -- this is acceptable for a desktop app but worth noting
-- Annotation state is per-tab, so switching tabs must save/restore annotations
-- Ruler mode measurements are per-tab
-- The sidebar panel is shared but updates its content based on the active tab
-- Window title updates to show the active tab's filename
+## Files
+
+| Action | File |
+|--------|------|
+| Create | `ui/arrow_panel.py` |
+| Modify | `viewer_widget_pygfx.py` — add manipulation methods, remove drag-to-orient |
+| Modify | `stl_viewer.py` — wire arrow panel into tab system |
+
