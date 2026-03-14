@@ -73,10 +73,11 @@ def debug_print(msg):
 
 @dataclass
 class TabState:
-    """Holds all per-tab state: viewer, annotations, sidebar cache, mode flags."""
+    """Holds all per-tab state: viewer, annotations, arrows, sidebar cache, mode flags."""
     file_path: Optional[str] = None
     viewer_widget: Any = None  # STLViewerWidget instance
     annotation_panel: Any = None  # AnnotationPanel instance
+    arrow_panel: Any = None  # ArrowPanel instance
     sidebar_data: Optional[dict] = None  # cached mesh_data dict for sidebar
     mesh: Any = None  # current_mesh reference
     ruler_active: bool = False
