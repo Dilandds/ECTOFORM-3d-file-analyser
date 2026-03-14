@@ -55,8 +55,8 @@ class PartCard(QFrame):
         self.name_label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 11px; font-weight: 500; border: none; background: transparent;")
         info_layout.addWidget(self.name_label)
 
-        if face_count > 0:
-            face_label = QLabel(f"{face_count:,} faces")
+        if self.face_count > 0:
+            face_label = QLabel(f"{self.face_count:,} faces")
             face_label.setStyleSheet(f"color: {default_theme.text_subtext}; font-size: 9px; border: none; background: transparent;")
             info_layout.addWidget(face_label)
 
