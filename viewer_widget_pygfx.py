@@ -2442,16 +2442,20 @@ class STLViewerWidget(QWidget):
 
         return False
 
-    def _add_arrow(self, point, direction, color='#E53935', length_factor=0.08):
-        """Add a 3D arrow (cone + shaft) at point with direction."""
-        import pygfx as gfx
-
+    def _get_model_diag(self):
+        """Return the diagonal of the current mesh bounding box."""
         bounds = self.current_mesh.bounds
-        diag = np.sqrt(
+        return np.sqrt(
             (bounds[1] - bounds[0]) ** 2 +
             (bounds[3] - bounds[2]) ** 2 +
             (bounds[5] - bounds[4]) ** 2
         )
+
+    def _add_arrow(self, point, direction, color='#E53935', length_factor=0.08):
+        """Add a 3D arrow (cone + shaft) at point with direction."""
+        import pygfx as gfx
+
+        diag = self._get_model_diag()
         arrow_length = diag * length_factor
         cone_length = arrow_length * 0.35
         shaft_length = arrow_length * 0.65
