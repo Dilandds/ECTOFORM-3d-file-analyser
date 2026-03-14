@@ -721,10 +721,12 @@ class STLViewerWindow(QMainWindow):
         # Remove widgets from stacks
         self.viewer_stack.removeWidget(tab.viewer_widget)
         self.annotation_stack.removeWidget(tab.annotation_panel)
+        self.arrow_stack.removeWidget(tab.arrow_panel)
         
         # Destroy widgets
         tab.viewer_widget.deleteLater()
         tab.annotation_panel.deleteLater()
+        tab.arrow_panel.deleteLater()
         
         # Remove from lists
         self.tabs.pop(index)
