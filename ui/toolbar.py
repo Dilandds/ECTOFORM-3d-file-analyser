@@ -598,6 +598,11 @@ class ViewControlsToolbar(QWidget):
         arrow_action.setChecked(self.arrow_mode_enabled)
         arrow_action.triggered.connect(self._on_arrow_selected)
 
+        parts_action = menu.addAction("🧩  Parts")
+        parts_action.setCheckable(True)
+        parts_action.setChecked(self.parts_mode_enabled)
+        parts_action.triggered.connect(self._on_parts_selected)
+
         menu.exec_(self.annotation_btn.mapToGlobal(
             self.annotation_btn.rect().bottomLeft()
         ))
