@@ -663,6 +663,37 @@ class ViewControlsToolbar(QWidget):
             self.annotation_btn.set_icon("📝")
         self.annotation_btn.set_active(self.arrow_mode_enabled)
         self.toggle_arrow.emit()
+
+    def _on_parts_selected(self):
+        """Handle parts mode selection from dropdown."""
+        # Exit other modes
+        if self.annotation_mode_enabled:
+            self.annotation_mode_enabled = False
+            self.toggle_annotation.emit()
+        if self.arrow_mode_enabled:
+            self.arrow_mode_enabled = False
+            self.toggle_arrow.emit()
+
+        self.parts_mode_enabled = not self.parts_mode_enabled
+        if self.parts_mode_enabled:
+            self.annotation_btn.set_label("Parts ▼")
+            self.annotation_btn.set_icon("🧩")
+            if self.ruler_mode_enabled:
+                self.ruler_mode_enabled = False
+                self.ruler_btn.set_active(False)
+                self.ruler_btn.set_icon("📏")
+            if self.screenshot_mode_enabled:
+                self.screenshot_mode_enabled = False
+                self.screenshot_btn.set_active(False)
+            if self.draw_mode_enabled:
+                self.draw_mode_enabled = False
+                self.draw_btn.set_active(False)
+                self.draw_btn.set_label("Draw ▼")
+        else:
+            self.annotation_btn.set_label("Annotate ▼")
+            self.annotation_btn.set_icon("📝")
+        self.annotation_btn.set_active(self.parts_mode_enabled)
+        self.toggle_parts.emit()
     
     def _on_screenshot_clicked(self):
         """Handle screenshot mode toggle."""
