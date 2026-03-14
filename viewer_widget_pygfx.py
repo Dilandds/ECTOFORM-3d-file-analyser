@@ -138,7 +138,8 @@ class STLViewerWidget(QWidget):
         self._scene = None
         self._camera = None
         self._controller = None
-        self._mesh_obj = None
+        self._mesh_obj = None  # Single mesh or gfx.Group of parts
+        self._mesh_parts = []  # list of {'id', 'name', 'mesh_obj', 'trimesh', 'visible', 'face_count'}
         self.current_mesh = None  # Trimesh object for compatibility
         self.current_actor = None  # Not used; kept for hasattr checks
         self.plotter = None  # Not used; kept for hasattr checks
@@ -469,36 +470,57 @@ class STLViewerWidget(QWidget):
                     raise ValueError("No mesh in file")
                 pv_mesh = _trimesh_to_pyvista(mesh_tri)
 
-            # Normalize mesh_tri (Scene -> single Trimesh)
+            # Normalize mesh_tri: preserve sub-meshes as separate parts
+            sub_meshes = []  # list of (name, trimesh.Trimesh)
             if isinstance(mesh_tri, trimesh.Scene):
-                all_meshes = [g for g in mesh_tri.geometry.values() if isinstance(g, trimesh.Trimesh)]
+                all_meshes = [(name, g) for name, g in mesh_tri.geometry.items() if isinstance(g, trimesh.Trimesh)]
                 if not all_meshes:
                     raise ValueError("No meshes in file")
-                mesh_tri = trimesh.util.concatenate(all_meshes) if len(all_meshes) > 1 else all_meshes[0]
+                sub_meshes = all_meshes
+                # Combined mesh for raycasting/MeshCalculator
+                mesh_tri = trimesh.util.concatenate([g for _, g in all_meshes]) if len(all_meshes) > 1 else all_meshes[0][1]
+            elif isinstance(mesh_tri, trimesh.Trimesh) and len(mesh_tri.vertices) > 0:
+                fname = Path(file_path).stem if file_path else "Part"
+                sub_meshes = [(fname, mesh_tri)]
+            else:
+                raise ValueError("No mesh in file")
+
             if not isinstance(mesh_tri, trimesh.Trimesh) or len(mesh_tri.vertices) == 0:
                 raise ValueError("No mesh in file")
 
-            # Use flat-shaded mesh for sharp edges (original geometry has sharp edges)
-            mesh_tri = _trimesh_to_flat_shaded(mesh_tri)
-
-            # Ensure PyVista for MeshCalculator
+            # Ensure PyVista for MeshCalculator (before flat-shading)
             if pv_mesh is None:
                 pv_mesh = _trimesh_to_pyvista(mesh_tri)
             if pv_mesh is None:
                 raise ValueError("Could not convert mesh for dimensions/volume calculation")
 
-            # PyVista-equivalent material (light blue per spec: RGB 0.68, 0.85, 0.90 = #ADD9E6)
-            material = gfx.MeshPhongMaterial(
-                color="#ADD9E6",
-                specular="#333333",
-                shininess=20,
-            )
+            # Build separate gfx.Mesh per sub-mesh inside a Group
             from pygfx.geometries import geometry_from_trimesh
-            geometry = geometry_from_trimesh(mesh_tri)
-            mesh_obj = gfx.Mesh(geometry, material)
-            self._mesh_obj = mesh_obj
+            mesh_group = gfx.Group()
+            self._mesh_parts = []
+            for part_idx, (part_name, part_tri) in enumerate(sub_meshes):
+                flat_tri = _trimesh_to_flat_shaded(part_tri)
+                material = gfx.MeshPhongMaterial(
+                    color="#ADD9E6", specular="#333333", shininess=20,
+                )
+                geometry = geometry_from_trimesh(flat_tri)
+                part_mesh = gfx.Mesh(geometry, material)
+                mesh_group.add(part_mesh)
+                self._mesh_parts.append({
+                    'id': part_idx,
+                    'name': part_name,
+                    'mesh_obj': part_mesh,
+                    'trimesh': part_tri,
+                    'visible': True,
+                    'face_count': len(part_tri.faces),
+                })
+
+            self._mesh_obj = mesh_group
             self._scene.add(self._mesh_obj)
             self.set_render_mode(self._render_mode)
+
+            # Keep combined flat-shaded trimesh for annotation raycasting
+            mesh_tri = _trimesh_to_flat_shaded(mesh_tri)
 
             self.current_mesh = pv_mesh
             self._annotation_trimesh = mesh_tri  # Keep trimesh for raycasting in annotation mode
@@ -592,18 +614,21 @@ class STLViewerWidget(QWidget):
             return
         self._render_mode = mode
         import pygfx as gfx
-        if mode == 'wireframe':
-            self._mesh_obj.material = gfx.MeshBasicMaterial(
-                wireframe=True, color="#333333", wireframe_thickness=1
-            )
-        elif mode == 'shaded':
-            self._mesh_obj.material = gfx.MeshPhongMaterial(
-                color="#b8b8c0", specular="#a0a0a0", shininess=90
-            )
-        else:  # solid
-            self._mesh_obj.material = gfx.MeshPhongMaterial(
-                color="#ADD9E6", specular="#333333", shininess=20
-            )
+        # Build material based on mode
+        def _make_material():
+            if mode == 'wireframe':
+                return gfx.MeshBasicMaterial(wireframe=True, color="#333333", wireframe_thickness=1)
+            elif mode == 'shaded':
+                return gfx.MeshPhongMaterial(color="#b8b8c0", specular="#a0a0a0", shininess=90)
+            else:
+                return gfx.MeshPhongMaterial(color="#ADD9E6", specular="#333333", shininess=20)
+
+        # Apply to all parts in the group
+        if self._mesh_parts:
+            for part in self._mesh_parts:
+                part['mesh_obj'].material = _make_material()
+        elif hasattr(self._mesh_obj, 'material'):
+            self._mesh_obj.material = _make_material()
         if self._canvas:
             self._canvas.request_draw()
 
@@ -757,6 +782,7 @@ class STLViewerWidget(QWidget):
         if self._scene and self._mesh_obj:
             self._scene.remove(self._mesh_obj)
             self._mesh_obj = None
+        self._mesh_parts = []
         if getattr(self, '_axes', None) is not None:
             try:
                 self._axes.visible = False
@@ -2701,3 +2727,86 @@ class STLViewerWidget(QWidget):
         """Remove the most recently added arrow."""
         if self._arrow_objects:
             self.remove_arrow(self._arrow_objects[-1]['id'])
+
+    # ========== Part Visibility Methods ==========
+
+    def get_parts_list(self):
+        """Return list of part metadata for the PartsPanel."""
+        return [
+            {
+                'id': p['id'],
+                'name': p['name'],
+                'face_count': p.get('face_count', 0),
+                'visible': p.get('visible', True),
+            }
+            for p in self._mesh_parts
+        ]
+
+    def set_part_visible(self, part_id, visible):
+        """Show or hide a specific part by ID."""
+        for p in self._mesh_parts:
+            if p['id'] == part_id:
+                p['visible'] = visible
+                p['mesh_obj'].visible = visible
+                break
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def show_all_parts(self):
+        """Make all parts visible."""
+        for p in self._mesh_parts:
+            p['visible'] = True
+            p['mesh_obj'].visible = True
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def hide_all_parts(self):
+        """Hide all parts."""
+        for p in self._mesh_parts:
+            p['visible'] = False
+            p['mesh_obj'].visible = False
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def invert_parts_visibility(self):
+        """Invert visibility of all parts."""
+        for p in self._mesh_parts:
+            p['visible'] = not p['visible']
+            p['mesh_obj'].visible = p['visible']
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def isolate_part(self, part_id):
+        """Show only the specified part, hide all others."""
+        for p in self._mesh_parts:
+            vis = (p['id'] == part_id)
+            p['visible'] = vis
+            p['mesh_obj'].visible = vis
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def highlight_part(self, part_id):
+        """Briefly highlight a selected part (make others semi-transparent)."""
+        import pygfx as gfx
+        for p in self._mesh_parts:
+            if not p['visible']:
+                continue
+            if p['id'] == part_id:
+                # Restore full opacity
+                if self._render_mode == 'wireframe':
+                    p['mesh_obj'].material = gfx.MeshBasicMaterial(wireframe=True, color="#333333", wireframe_thickness=1)
+                elif self._render_mode == 'shaded':
+                    p['mesh_obj'].material = gfx.MeshPhongMaterial(color="#b8b8c0", specular="#a0a0a0", shininess=90)
+                else:
+                    p['mesh_obj'].material = gfx.MeshPhongMaterial(color="#ADD9E6", specular="#333333", shininess=20)
+            else:
+                # Semi-transparent
+                p['mesh_obj'].material = gfx.MeshPhongMaterial(
+                    color="#ADD9E6", specular="#333333", shininess=20, opacity=0.25
+                )
+        if self._canvas:
+            self._canvas.request_draw()
+
+    def unhighlight_parts(self):
+        """Restore normal materials on all parts."""
+        self.set_render_mode(self._render_mode)

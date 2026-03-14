@@ -222,6 +222,7 @@ class ViewControlsToolbar(QWidget):
     toggle_ruler = pyqtSignal()
     toggle_annotation = pyqtSignal()
     toggle_arrow = pyqtSignal()
+    toggle_parts = pyqtSignal()
     toggle_screenshot = pyqtSignal()
     toggle_draw = pyqtSignal()
     draw_color_changed = pyqtSignal(str)  # hex color
@@ -239,6 +240,7 @@ class ViewControlsToolbar(QWidget):
         self.ruler_mode_enabled = False
         self.annotation_mode_enabled = False
         self.arrow_mode_enabled = False
+        self.parts_mode_enabled = False
         self.screenshot_mode_enabled = False
         self.draw_mode_enabled = False
         self._draw_color = '#FF0000'
@@ -596,6 +598,11 @@ class ViewControlsToolbar(QWidget):
         arrow_action.setChecked(self.arrow_mode_enabled)
         arrow_action.triggered.connect(self._on_arrow_selected)
 
+        parts_action = menu.addAction("🧩  Parts")
+        parts_action.setCheckable(True)
+        parts_action.setChecked(self.parts_mode_enabled)
+        parts_action.triggered.connect(self._on_parts_selected)
+
         menu.exec_(self.annotation_btn.mapToGlobal(
             self.annotation_btn.rect().bottomLeft()
         ))
@@ -656,6 +663,37 @@ class ViewControlsToolbar(QWidget):
             self.annotation_btn.set_icon("📝")
         self.annotation_btn.set_active(self.arrow_mode_enabled)
         self.toggle_arrow.emit()
+
+    def _on_parts_selected(self):
+        """Handle parts mode selection from dropdown."""
+        # Exit other modes
+        if self.annotation_mode_enabled:
+            self.annotation_mode_enabled = False
+            self.toggle_annotation.emit()
+        if self.arrow_mode_enabled:
+            self.arrow_mode_enabled = False
+            self.toggle_arrow.emit()
+
+        self.parts_mode_enabled = not self.parts_mode_enabled
+        if self.parts_mode_enabled:
+            self.annotation_btn.set_label("Parts ▼")
+            self.annotation_btn.set_icon("🧩")
+            if self.ruler_mode_enabled:
+                self.ruler_mode_enabled = False
+                self.ruler_btn.set_active(False)
+                self.ruler_btn.set_icon("📏")
+            if self.screenshot_mode_enabled:
+                self.screenshot_mode_enabled = False
+                self.screenshot_btn.set_active(False)
+            if self.draw_mode_enabled:
+                self.draw_mode_enabled = False
+                self.draw_btn.set_active(False)
+                self.draw_btn.set_label("Draw ▼")
+        else:
+            self.annotation_btn.set_label("Annotate ▼")
+            self.annotation_btn.set_icon("📝")
+        self.annotation_btn.set_active(self.parts_mode_enabled)
+        self.toggle_parts.emit()
     
     def _on_screenshot_clicked(self):
         """Handle screenshot mode toggle."""
@@ -728,6 +766,14 @@ class ViewControlsToolbar(QWidget):
             self.fullscreen_btn.set_icon("⛶")
         self.fullscreen_btn.set_active(self.is_fullscreen)
         self.toggle_fullscreen.emit()
+
+    def reset_parts_state(self):
+        """Reset parts button state (called when exiting parts mode externally)."""
+        self.parts_mode_enabled = False
+        if not self.annotation_mode_enabled and not self.arrow_mode_enabled:
+            self.annotation_btn.set_label("Annotate ▼")
+            self.annotation_btn.set_icon("📝")
+            self.annotation_btn.set_active(False)
     
     def _on_load_clicked(self):
         """Handle load file."""

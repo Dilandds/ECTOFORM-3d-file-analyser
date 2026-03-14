@@ -44,6 +44,7 @@ from ui.toolbar import ViewControlsToolbar
 from ui.ruler_toolbar import RulerToolbar
 from ui.annotation_panel import AnnotationPanel
 from ui.arrow_panel import ArrowPanel
+from ui.parts_panel import PartsPanel
 from ui.styles import get_global_stylesheet, default_theme
 from core.mesh_calculator import MeshCalculator
 from ui.screenshot_panel import ScreenshotPanel
@@ -78,11 +79,13 @@ class TabState:
     viewer_widget: Any = None  # STLViewerWidget instance
     annotation_panel: Any = None  # AnnotationPanel instance
     arrow_panel: Any = None  # ArrowPanel instance
+    parts_panel: Any = None  # PartsPanel instance
     sidebar_data: Optional[dict] = None  # cached mesh_data dict for sidebar
     mesh: Any = None  # current_mesh reference
     ruler_active: bool = False
     annotation_mode_active: bool = False
     arrow_mode_active: bool = False
+    parts_mode_active: bool = False
     screenshot_mode_active: bool = False
     draw_mode_active: bool = False
     annotations_exported: bool = False
@@ -272,13 +275,14 @@ class STLViewerWindow(QMainWindow):
         self.annotation_stack = QStackedWidget()
         self.screenshot_stack = QStackedWidget()
         self.arrow_stack = QStackedWidget()
+        self.parts_stack = QStackedWidget()
         
         # Shared screenshot panel (one per window, not per tab)
         self.screenshot_panel = ScreenshotPanel()
         self.screenshot_panel.exit_screenshot_mode.connect(self._exit_screenshot_mode)
         self.screenshot_stack.addWidget(self.screenshot_panel)
         
-        # Single right panel: only annotation OR screenshot OR arrow visible at a time (same width)
+        # Single right panel: only annotation OR screenshot OR arrow OR parts visible at a time
         self.right_panel_stack = QStackedWidget()
         self._right_panel_placeholder = QWidget()
         self._right_panel_placeholder.setFixedWidth(0)  # No space when neither mode active
@@ -286,6 +290,7 @@ class STLViewerWindow(QMainWindow):
         self.right_panel_stack.addWidget(self.annotation_stack)
         self.right_panel_stack.addWidget(self.screenshot_stack)
         self.right_panel_stack.addWidget(self.arrow_stack)
+        self.right_panel_stack.addWidget(self.parts_stack)
         self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
         self.right_panel_stack.hide()  # No blank space when neither mode active
         
@@ -537,10 +542,16 @@ class STLViewerWindow(QMainWindow):
         tab.arrow_panel.hide()
         self._connect_arrow_panel_signals_for(tab)
         
+        # Create parts panel
+        tab.parts_panel = PartsPanel()
+        tab.parts_panel.hide()
+        self._connect_parts_panel_signals_for(tab)
+        
         # Add to stacks
         self.viewer_stack.addWidget(tab.viewer_widget)
         self.annotation_stack.addWidget(tab.annotation_panel)
         self.arrow_stack.addWidget(tab.arrow_panel)
+        self.parts_stack.addWidget(tab.parts_panel)
         
         # Add to tabs list
         self.tabs.append(tab)
@@ -582,13 +593,18 @@ class STLViewerWindow(QMainWindow):
         self.current_tab_index = index
         tab = self.tabs[index]
         
-        # Show correct viewer, annotation panel, and arrow panel
+        # Show correct viewer, annotation panel, arrow panel, and parts panel
         self.viewer_stack.setCurrentWidget(tab.viewer_widget)
         self.annotation_stack.setCurrentWidget(tab.annotation_panel)
         self.arrow_stack.setCurrentWidget(tab.arrow_panel)
+        self.parts_stack.setCurrentWidget(tab.parts_panel)
         
         # Determine which right panel to show
-        if tab.arrow_mode_active:
+        if tab.parts_mode_active:
+            tab.parts_panel.show()
+            self.right_panel_stack.setCurrentWidget(self.parts_stack)
+            self.right_panel_stack.show()
+        elif tab.arrow_mode_active:
             tab.arrow_panel.show()
             self.right_panel_stack.setCurrentWidget(self.arrow_stack)
             self.right_panel_stack.show()
@@ -603,6 +619,7 @@ class STLViewerWindow(QMainWindow):
         else:
             tab.annotation_panel.hide()
             tab.arrow_panel.hide()
+            tab.parts_panel.hide()
             self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
             self.right_panel_stack.hide()
         
@@ -670,6 +687,7 @@ class STLViewerWindow(QMainWindow):
         tab.ruler_active = self.toolbar.ruler_mode_enabled
         tab.annotation_mode_active = self.toolbar.annotation_mode_enabled
         tab.arrow_mode_active = self.toolbar.arrow_mode_enabled
+        tab.parts_mode_active = getattr(self.toolbar, 'parts_mode_enabled', False)
         tab.screenshot_mode_active = self.toolbar.screenshot_mode_enabled
         tab.draw_mode_active = self.toolbar.draw_mode_enabled
     
@@ -722,11 +740,13 @@ class STLViewerWindow(QMainWindow):
         self.viewer_stack.removeWidget(tab.viewer_widget)
         self.annotation_stack.removeWidget(tab.annotation_panel)
         self.arrow_stack.removeWidget(tab.arrow_panel)
+        self.parts_stack.removeWidget(tab.parts_panel)
         
         # Destroy widgets
         tab.viewer_widget.deleteLater()
         tab.annotation_panel.deleteLater()
         tab.arrow_panel.deleteLater()
+        tab.parts_panel.deleteLater()
         
         # Remove from lists
         self.tabs.pop(index)
@@ -845,6 +865,7 @@ class STLViewerWindow(QMainWindow):
         self.toolbar.toggle_annotation.connect(self._toggle_annotation_mode)
         self.toolbar.toggle_arrow.connect(self._toggle_arrow_mode)
         self.toolbar.toggle_draw.connect(self._toggle_draw_mode)
+        self.toolbar.toggle_parts.connect(self._toggle_parts_mode)
         self.toolbar.draw_color_changed.connect(self._on_draw_color_changed)
         self.toolbar.load_file.connect(self.upload_stl_file)
         self.toolbar.clear_model.connect(self._clear_current_model)
@@ -1482,6 +1503,107 @@ class STLViewerWindow(QMainWindow):
             vw.remove_arrow(last_id)
             if tab and tab.arrow_panel:
                 tab.arrow_panel.remove_arrow(last_id)
+
+    # ========== Parts Mode Methods ==========
+
+    def _toggle_parts_mode(self):
+        """Toggle parts visibility panel."""
+        vw = self.viewer_widget
+        if vw is None:
+            return
+        tab = self._current_tab
+        if tab is None:
+            return
+        if self.toolbar.parts_mode_enabled:
+            # Exit other modes
+            if self.toolbar.annotation_mode_enabled:
+                self._exit_annotation_mode()
+            if self.toolbar.arrow_mode_enabled:
+                self._exit_arrow_mode()
+            if self.toolbar.ruler_mode_enabled:
+                self._exit_ruler_mode()
+            if self.toolbar.screenshot_mode_enabled:
+                self._exit_screenshot_mode()
+            if self.toolbar.draw_mode_enabled:
+                self._exit_draw_mode()
+            # Populate parts list from viewer
+            parts = vw.get_parts_list() if hasattr(vw, 'get_parts_list') else []
+            tab.parts_panel.set_parts(parts)
+            tab.parts_panel.show()
+            self.parts_stack.setCurrentWidget(tab.parts_panel)
+            self.right_panel_stack.setCurrentWidget(self.parts_stack)
+            self.right_panel_stack.show()
+            if hasattr(vw, 'reframe_for_viewport'):
+                QTimer.singleShot(50, vw.reframe_for_viewport)
+            logger.info("_toggle_parts_mode: Parts mode enabled")
+        else:
+            self._exit_parts_mode()
+
+    def _exit_parts_mode(self):
+        """Exit parts mode."""
+        tab = self._current_tab
+        vw = self.viewer_widget
+        if tab and tab.parts_panel:
+            tab.parts_panel.hide()
+        # Restore all parts visible
+        if vw and hasattr(vw, 'show_all_parts'):
+            vw.show_all_parts()
+        if vw and hasattr(vw, 'unhighlight_parts'):
+            vw.unhighlight_parts()
+        self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
+        self.right_panel_stack.hide()
+        if vw and hasattr(vw, 'reframe_for_viewport'):
+            QTimer.singleShot(50, vw.reframe_for_viewport)
+        self.toolbar.reset_parts_state()
+        logger.info("_exit_parts_mode: Parts mode disabled")
+
+    def _exit_parts_mode_from_panel(self):
+        """Exit parts mode triggered from the panel close button."""
+        if self.toolbar.parts_mode_enabled:
+            self.toolbar.parts_mode_enabled = False
+            self.toolbar.reset_parts_state()
+        self._exit_parts_mode()
+
+    def _connect_parts_panel_signals_for(self, tab: TabState):
+        """Connect parts panel signals for a specific tab."""
+        panel = tab.parts_panel
+        panel.part_visibility_changed.connect(lambda pid, vis: self._part_set_visible(pid, vis))
+        panel.part_selected.connect(lambda pid: self._part_select(pid))
+        panel.show_all_requested.connect(self._parts_show_all)
+        panel.hide_all_requested.connect(self._parts_hide_all)
+        panel.invert_visibility_requested.connect(self._parts_invert)
+        panel.isolate_selected_requested.connect(lambda pid: self._part_isolate(pid))
+        panel.exit_parts_mode.connect(self._exit_parts_mode_from_panel)
+
+    def _part_set_visible(self, part_id, visible):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'set_part_visible'):
+            vw.set_part_visible(part_id, visible)
+
+    def _part_select(self, part_id):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'highlight_part'):
+            vw.highlight_part(part_id)
+
+    def _parts_show_all(self):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'show_all_parts'):
+            vw.show_all_parts()
+
+    def _parts_hide_all(self):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'hide_all_parts'):
+            vw.hide_all_parts()
+
+    def _parts_invert(self):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'invert_parts_visibility'):
+            vw.invert_parts_visibility()
+
+    def _part_isolate(self, part_id):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'isolate_part'):
+            vw.isolate_part(part_id)
 
     # ========== Screenshot Mode Methods ==========
     
