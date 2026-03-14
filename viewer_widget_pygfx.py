@@ -782,6 +782,7 @@ class STLViewerWidget(QWidget):
         if self._scene and self._mesh_obj:
             self._scene.remove(self._mesh_obj)
             self._mesh_obj = None
+        self._mesh_parts = []
         if getattr(self, '_axes', None) is not None:
             try:
                 self._axes.visible = False
