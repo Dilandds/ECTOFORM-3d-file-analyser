@@ -2476,21 +2476,23 @@ class STLViewerWidget(QWidget):
 
         group = gfx.Group()
 
-        # Shaft cylinder
+        # Shaft cylinder - centered at origin, so offset by half height
         shaft_geom = gfx.cylinder_geometry(
             radius_bottom=shaft_radius, radius_top=shaft_radius,
             height=shaft_length, radial_segments=12
         )
         shaft_mat = gfx.MeshPhongMaterial(color=(r, g, b), shininess=60)
         shaft = gfx.Mesh(shaft_geom, shaft_mat)
-        shaft.local.position = (0, shaft_length / 2, 0)
+        # Place shaft so its base is at y=0, center at y=shaft_length/2
+        shaft.local.position = np.array([0, shaft_length / 2, 0], dtype=np.float32)
         group.add(shaft)
 
-        # Cone head
+        # Cone head - place so its base touches the top of the shaft
         cone_geom = gfx.cone_geometry(radius=cone_radius, height=cone_length, radial_segments=16)
         cone_mat = gfx.MeshPhongMaterial(color=(r, g, b), shininess=60)
         cone = gfx.Mesh(cone_geom, cone_mat)
-        cone.local.position = (0, shaft_length + cone_length / 2, 0)
+        # Cone is centered at origin; move so base aligns with shaft top
+        cone.local.position = np.array([0, shaft_length + cone_length / 2, 0], dtype=np.float32)
         group.add(cone)
 
         # Orient along direction
