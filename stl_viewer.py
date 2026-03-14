@@ -582,20 +582,29 @@ class STLViewerWindow(QMainWindow):
         self.current_tab_index = index
         tab = self.tabs[index]
         
-        # Show correct viewer and annotation panel
+        # Show correct viewer, annotation panel, and arrow panel
         self.viewer_stack.setCurrentWidget(tab.viewer_widget)
         self.annotation_stack.setCurrentWidget(tab.annotation_panel)
+        self.arrow_stack.setCurrentWidget(tab.arrow_panel)
         
-        # Update annotation panel visibility
-        if tab.annotation_mode_active:
+        # Determine which right panel to show
+        if tab.arrow_mode_active:
+            tab.arrow_panel.show()
+            self.right_panel_stack.setCurrentWidget(self.arrow_stack)
+            self.right_panel_stack.show()
+        elif tab.annotation_mode_active:
             tab.annotation_panel.show()
             self.right_panel_stack.setCurrentWidget(self.annotation_stack)
             self.right_panel_stack.show()
+        elif tab.screenshot_mode_active:
+            self.right_panel_stack.setCurrentWidget(self.screenshot_stack)
+            self.right_panel_stack.show()
+            self.screenshot_panel.show()
         else:
             tab.annotation_panel.hide()
-            if not tab.screenshot_mode_active:
-                self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
-                self.right_panel_stack.hide()
+            tab.arrow_panel.hide()
+            self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
+            self.right_panel_stack.hide()
         
         # Update sidebar with this tab's data
         if tab.sidebar_data and tab.file_path:
@@ -636,19 +645,20 @@ class STLViewerWindow(QMainWindow):
             if self.toolbar.annotation_mode_enabled:
                 self.toolbar.reset_annotation_state()
         
+        # Restore arrow mode
+        if tab.arrow_mode_active:
+            self.toolbar.arrow_mode_enabled = True
+        else:
+            if self.toolbar.arrow_mode_enabled:
+                self.toolbar.reset_arrow_state()
+        
         # Restore screenshot mode
         if tab.screenshot_mode_active:
             self.toolbar.screenshot_mode_enabled = True
             self.toolbar.screenshot_btn.set_active(True)
-            self.right_panel_stack.setCurrentWidget(self.screenshot_stack)
-            self.right_panel_stack.show()
-            self.screenshot_panel.show()
         else:
             if self.toolbar.screenshot_mode_enabled:
                 self._exit_screenshot_mode()
-            elif not tab.annotation_mode_active:
-                self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
-                self.right_panel_stack.hide()
         
         logger.info(f"_on_tab_changed: Switched to tab {index} ({tab.filename or 'Untitled'})")
     
