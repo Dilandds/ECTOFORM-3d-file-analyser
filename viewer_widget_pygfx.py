@@ -138,7 +138,8 @@ class STLViewerWidget(QWidget):
         self._scene = None
         self._camera = None
         self._controller = None
-        self._mesh_obj = None
+        self._mesh_obj = None  # Single mesh or gfx.Group of parts
+        self._mesh_parts = []  # list of {'id', 'name', 'mesh_obj', 'trimesh', 'visible', 'face_count'}
         self.current_mesh = None  # Trimesh object for compatibility
         self.current_actor = None  # Not used; kept for hasattr checks
         self.plotter = None  # Not used; kept for hasattr checks
