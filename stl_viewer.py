@@ -43,6 +43,7 @@ from ui.sidebar_panel import SidebarPanel
 from ui.toolbar import ViewControlsToolbar
 from ui.ruler_toolbar import RulerToolbar
 from ui.annotation_panel import AnnotationPanel
+from ui.arrow_panel import ArrowPanel
 from ui.styles import get_global_stylesheet, default_theme
 from core.mesh_calculator import MeshCalculator
 from ui.screenshot_panel import ScreenshotPanel
@@ -72,10 +73,11 @@ def debug_print(msg):
 
 @dataclass
 class TabState:
-    """Holds all per-tab state: viewer, annotations, sidebar cache, mode flags."""
+    """Holds all per-tab state: viewer, annotations, arrows, sidebar cache, mode flags."""
     file_path: Optional[str] = None
     viewer_widget: Any = None  # STLViewerWidget instance
     annotation_panel: Any = None  # AnnotationPanel instance
+    arrow_panel: Any = None  # ArrowPanel instance
     sidebar_data: Optional[dict] = None  # cached mesh_data dict for sidebar
     mesh: Any = None  # current_mesh reference
     ruler_active: bool = False
@@ -265,23 +267,25 @@ class STLViewerWindow(QMainWindow):
         self.right_layout.addWidget(self.ruler_toolbar)
         logger.info("init_ui: Ruler toolbar created")
         
-        # ---- Stacked widgets for viewers and annotation/screenshot panels ----
+        # ---- Stacked widgets for viewers and annotation/screenshot/arrow panels ----
         self.viewer_stack = QStackedWidget()
         self.annotation_stack = QStackedWidget()
         self.screenshot_stack = QStackedWidget()
+        self.arrow_stack = QStackedWidget()
         
         # Shared screenshot panel (one per window, not per tab)
         self.screenshot_panel = ScreenshotPanel()
         self.screenshot_panel.exit_screenshot_mode.connect(self._exit_screenshot_mode)
         self.screenshot_stack.addWidget(self.screenshot_panel)
         
-        # Single right panel: only annotation OR screenshot visible at a time (same width)
+        # Single right panel: only annotation OR screenshot OR arrow visible at a time (same width)
         self.right_panel_stack = QStackedWidget()
         self._right_panel_placeholder = QWidget()
         self._right_panel_placeholder.setFixedWidth(0)  # No space when neither mode active
         self.right_panel_stack.addWidget(self._right_panel_placeholder)
         self.right_panel_stack.addWidget(self.annotation_stack)
         self.right_panel_stack.addWidget(self.screenshot_stack)
+        self.right_panel_stack.addWidget(self.arrow_stack)
         self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
         self.right_panel_stack.hide()  # No blank space when neither mode active
         
@@ -528,9 +532,15 @@ class STLViewerWindow(QMainWindow):
         tab.annotation_panel.hide()
         self._connect_annotation_panel_signals_for(tab)
         
+        # Create arrow panel
+        tab.arrow_panel = ArrowPanel()
+        tab.arrow_panel.hide()
+        self._connect_arrow_panel_signals_for(tab)
+        
         # Add to stacks
         self.viewer_stack.addWidget(tab.viewer_widget)
         self.annotation_stack.addWidget(tab.annotation_panel)
+        self.arrow_stack.addWidget(tab.arrow_panel)
         
         # Add to tabs list
         self.tabs.append(tab)
@@ -572,20 +582,29 @@ class STLViewerWindow(QMainWindow):
         self.current_tab_index = index
         tab = self.tabs[index]
         
-        # Show correct viewer and annotation panel
+        # Show correct viewer, annotation panel, and arrow panel
         self.viewer_stack.setCurrentWidget(tab.viewer_widget)
         self.annotation_stack.setCurrentWidget(tab.annotation_panel)
+        self.arrow_stack.setCurrentWidget(tab.arrow_panel)
         
-        # Update annotation panel visibility
-        if tab.annotation_mode_active:
+        # Determine which right panel to show
+        if tab.arrow_mode_active:
+            tab.arrow_panel.show()
+            self.right_panel_stack.setCurrentWidget(self.arrow_stack)
+            self.right_panel_stack.show()
+        elif tab.annotation_mode_active:
             tab.annotation_panel.show()
             self.right_panel_stack.setCurrentWidget(self.annotation_stack)
             self.right_panel_stack.show()
+        elif tab.screenshot_mode_active:
+            self.right_panel_stack.setCurrentWidget(self.screenshot_stack)
+            self.right_panel_stack.show()
+            self.screenshot_panel.show()
         else:
             tab.annotation_panel.hide()
-            if not tab.screenshot_mode_active:
-                self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
-                self.right_panel_stack.hide()
+            tab.arrow_panel.hide()
+            self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
+            self.right_panel_stack.hide()
         
         # Update sidebar with this tab's data
         if tab.sidebar_data and tab.file_path:
@@ -626,19 +645,20 @@ class STLViewerWindow(QMainWindow):
             if self.toolbar.annotation_mode_enabled:
                 self.toolbar.reset_annotation_state()
         
+        # Restore arrow mode
+        if tab.arrow_mode_active:
+            self.toolbar.arrow_mode_enabled = True
+        else:
+            if self.toolbar.arrow_mode_enabled:
+                self.toolbar.reset_arrow_state()
+        
         # Restore screenshot mode
         if tab.screenshot_mode_active:
             self.toolbar.screenshot_mode_enabled = True
             self.toolbar.screenshot_btn.set_active(True)
-            self.right_panel_stack.setCurrentWidget(self.screenshot_stack)
-            self.right_panel_stack.show()
-            self.screenshot_panel.show()
         else:
             if self.toolbar.screenshot_mode_enabled:
                 self._exit_screenshot_mode()
-            elif not tab.annotation_mode_active:
-                self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
-                self.right_panel_stack.hide()
         
         logger.info(f"_on_tab_changed: Switched to tab {index} ({tab.filename or 'Untitled'})")
     
@@ -701,10 +721,12 @@ class STLViewerWindow(QMainWindow):
         # Remove widgets from stacks
         self.viewer_stack.removeWidget(tab.viewer_widget)
         self.annotation_stack.removeWidget(tab.annotation_panel)
+        self.arrow_stack.removeWidget(tab.arrow_panel)
         
         # Destroy widgets
         tab.viewer_widget.deleteLater()
         tab.annotation_panel.deleteLater()
+        tab.arrow_panel.deleteLater()
         
         # Remove from lists
         self.tabs.pop(index)
@@ -1331,13 +1353,16 @@ class STLViewerWindow(QMainWindow):
     # ========== Arrow Mode Methods ==========
 
     def _toggle_arrow_mode(self):
-        """Toggle 3D arrow placement mode."""
+        """Toggle 3D arrow placement mode with control panel."""
         vw = self.viewer_widget
         if vw is None:
             return
+        tab = self._current_tab
+        if tab is None:
+            return
         if self.toolbar.arrow_mode_enabled:
             if hasattr(vw, 'enable_arrow_mode'):
-                # Exit other modes FIRST so ruler/annotation don't steal clicks
+                # Exit other modes FIRST
                 if self.toolbar.annotation_mode_enabled:
                     self._exit_annotation_mode()
                 if self.toolbar.ruler_mode_enabled:
@@ -1346,9 +1371,18 @@ class STLViewerWindow(QMainWindow):
                     self._exit_screenshot_mode()
                 if self.toolbar.draw_mode_enabled:
                     self._exit_draw_mode()
+                # Set callback so viewer notifies us of new arrows
+                vw._arrow_added_callback = lambda aid: self._on_arrow_placed(aid)
                 success = vw.enable_arrow_mode()
                 if success:
-                    logger.info("_toggle_arrow_mode: Arrow mode enabled")
+                    # Show arrow panel
+                    tab.arrow_panel.show()
+                    self.arrow_stack.setCurrentWidget(tab.arrow_panel)
+                    self.right_panel_stack.setCurrentWidget(self.arrow_stack)
+                    self.right_panel_stack.show()
+                    if hasattr(vw, 'reframe_for_viewport'):
+                        QTimer.singleShot(50, vw.reframe_for_viewport)
+                    logger.info("_toggle_arrow_mode: Arrow mode enabled with panel")
                 else:
                     self.toolbar.reset_arrow_state()
                     logger.warning("_toggle_arrow_mode: Failed to enable arrow mode")
@@ -1358,10 +1392,96 @@ class STLViewerWindow(QMainWindow):
     def _exit_arrow_mode(self):
         """Exit arrow mode; arrows remain visible."""
         vw = self.viewer_widget
+        tab = self._current_tab
         if vw and hasattr(vw, 'disable_arrow_mode'):
             vw.disable_arrow_mode()
+            vw._arrow_added_callback = None
+        if tab and tab.arrow_panel:
+            tab.arrow_panel.hide()
+        # Restore right panel
+        if self.toolbar.annotation_mode_enabled and tab:
+            self.right_panel_stack.setCurrentWidget(self.annotation_stack)
+            self.right_panel_stack.show()
+        elif self.toolbar.screenshot_mode_enabled:
+            self.right_panel_stack.setCurrentWidget(self.screenshot_stack)
+            self.right_panel_stack.show()
+        else:
+            self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
+            self.right_panel_stack.hide()
+        if vw and hasattr(vw, 'reframe_for_viewport'):
+            QTimer.singleShot(50, vw.reframe_for_viewport)
         self.toolbar.reset_arrow_state()
         logger.info("_exit_arrow_mode: Arrow mode disabled")
+
+    def _on_arrow_placed(self, arrow_id: int):
+        """Called when the viewer places a new arrow on the model."""
+        tab = self._current_tab
+        if tab and tab.arrow_panel:
+            tab.arrow_panel.add_arrow(arrow_id)
+
+    def _connect_arrow_panel_signals_for(self, tab: TabState):
+        """Connect arrow panel signals for a specific tab."""
+        panel = tab.arrow_panel
+        panel.rotate_requested.connect(lambda aid, axis, angle: self._arrow_rotate(aid, axis, angle))
+        panel.scale_requested.connect(lambda aid, factor: self._arrow_scale(aid, factor))
+        panel.move_requested.connect(lambda aid, dx, dy, dz: self._arrow_move(aid, dx, dy, dz))
+        panel.color_changed.connect(lambda aid, color: self._arrow_set_color(aid, color))
+        panel.delete_requested.connect(lambda aid: self._arrow_delete(aid))
+        panel.clear_all_requested.connect(self._arrow_clear_all)
+        panel.undo_last_requested.connect(self._arrow_undo_last)
+        panel.exit_arrow_mode.connect(self._exit_arrow_mode_from_panel)
+
+    def _exit_arrow_mode_from_panel(self):
+        """Exit arrow mode triggered from the panel close button."""
+        if self.toolbar.arrow_mode_enabled:
+            self.toolbar.arrow_mode_enabled = False
+            self.toolbar.reset_arrow_state()
+        self._exit_arrow_mode()
+
+    def _arrow_rotate(self, arrow_id, axis, angle):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'rotate_arrow'):
+            vw.rotate_arrow(arrow_id, axis, angle)
+
+    def _arrow_scale(self, arrow_id, factor):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'scale_arrow'):
+            vw.scale_arrow(arrow_id, factor)
+
+    def _arrow_move(self, arrow_id, dx, dy, dz):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'move_arrow'):
+            vw.move_arrow(arrow_id, dx, dy, dz)
+
+    def _arrow_set_color(self, arrow_id, color):
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'set_arrow_color'):
+            vw.set_arrow_color(arrow_id, color)
+
+    def _arrow_delete(self, arrow_id):
+        vw = self.viewer_widget
+        tab = self._current_tab
+        if vw and hasattr(vw, 'remove_arrow'):
+            vw.remove_arrow(arrow_id)
+        if tab and tab.arrow_panel:
+            tab.arrow_panel.remove_arrow(arrow_id)
+
+    def _arrow_clear_all(self):
+        vw = self.viewer_widget
+        tab = self._current_tab
+        if vw and hasattr(vw, 'clear_all_arrows'):
+            vw.clear_all_arrows()
+        if tab and tab.arrow_panel:
+            tab.arrow_panel.clear_all()
+
+    def _arrow_undo_last(self):
+        vw = self.viewer_widget
+        tab = self._current_tab
+        if vw and hasattr(vw, '_arrow_objects') and vw._arrow_objects:
+            last_id = vw._arrow_objects[-1]['id']
+            vw.remove_arrow(last_id)
+            if tab and tab.arrow_panel:
+                tab.arrow_panel.remove_arrow(last_id)
 
     # ========== Screenshot Mode Methods ==========
     
