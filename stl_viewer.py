@@ -600,7 +600,11 @@ class STLViewerWindow(QMainWindow):
         self.parts_stack.setCurrentWidget(tab.parts_panel)
         
         # Determine which right panel to show
-        if tab.arrow_mode_active:
+        if tab.parts_mode_active:
+            tab.parts_panel.show()
+            self.right_panel_stack.setCurrentWidget(self.parts_stack)
+            self.right_panel_stack.show()
+        elif tab.arrow_mode_active:
             tab.arrow_panel.show()
             self.right_panel_stack.setCurrentWidget(self.arrow_stack)
             self.right_panel_stack.show()
@@ -615,6 +619,7 @@ class STLViewerWindow(QMainWindow):
         else:
             tab.annotation_panel.hide()
             tab.arrow_panel.hide()
+            tab.parts_panel.hide()
             self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
             self.right_panel_stack.hide()
         
