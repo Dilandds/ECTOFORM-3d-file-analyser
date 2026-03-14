@@ -44,6 +44,7 @@ from ui.toolbar import ViewControlsToolbar
 from ui.ruler_toolbar import RulerToolbar
 from ui.annotation_panel import AnnotationPanel
 from ui.arrow_panel import ArrowPanel
+from ui.parts_panel import PartsPanel
 from ui.styles import get_global_stylesheet, default_theme
 from core.mesh_calculator import MeshCalculator
 from ui.screenshot_panel import ScreenshotPanel
