@@ -1619,6 +1619,7 @@ class STLViewerWindow(QMainWindow):
         panel.hide_all_requested.connect(self._parts_hide_all)
         panel.invert_visibility_requested.connect(self._parts_invert)
         panel.isolate_selected_requested.connect(lambda pid: self._part_isolate(pid))
+        panel.isolate_group_requested.connect(lambda pids: self._group_isolate(pids))
         panel.exit_parts_mode.connect(self._exit_parts_mode_from_panel)
 
     def _part_set_visible(self, part_id, visible):
