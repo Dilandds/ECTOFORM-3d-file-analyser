@@ -495,10 +495,22 @@ class PartsPanel(QWidget):
         self.invert_visibility_requested.emit()
 
     def _on_isolate(self):
-        if self._selected_part_id is None:
-            return
-        for pid, card in self._part_cards.items():
-            card.set_visible_state(pid == self._selected_part_id)
-        for group in self._group_cards.values():
-            group.update_eye_from_children()
-        self.isolate_selected_requested.emit(self._selected_part_id)
+        if self._selected_part_id is not None:
+            # Isolate single part
+            for pid, card in self._part_cards.items():
+                card.set_visible_state(pid == self._selected_part_id)
+            for group in self._group_cards.values():
+                group.update_eye_from_children()
+            self.isolate_selected_requested.emit(self._selected_part_id)
+        elif self._selected_group_id is not None:
+            # Isolate group — show only its children
+            group_card = self._group_cards.get(self._selected_group_id)
+            if group_card:
+                child_ids = set(group_card.get_child_ids())
+                for pid, card in self._part_cards.items():
+                    card.set_visible_state(pid in child_ids)
+                for group in self._group_cards.values():
+                    group.update_eye_from_children()
+                # Emit isolate for first child to trigger viewer update
+                if child_ids:
+                    self.isolate_selected_requested.emit(next(iter(child_ids)))
