@@ -3189,6 +3189,27 @@ class STLViewerWidget(QWidget):
         if self._canvas:
             self._canvas.request_draw()
 
+    def highlight_parts(self, part_ids):
+        """Highlight multiple parts (e.g. a group) — make others semi-transparent."""
+        import pygfx as gfx
+        highlighted = set(part_ids)
+        for p in self._mesh_parts:
+            if not p['visible']:
+                continue
+            if p['id'] in highlighted:
+                if self._render_mode == 'wireframe':
+                    p['mesh_obj'].material = gfx.MeshBasicMaterial(wireframe=True, color="#333333", wireframe_thickness=1)
+                elif self._render_mode == 'shaded':
+                    p['mesh_obj'].material = gfx.MeshPhongMaterial(color="#b8b8c0", specular="#a0a0a0", shininess=90)
+                else:
+                    p['mesh_obj'].material = gfx.MeshPhongMaterial(color="#ADD9E6", specular="#333333", shininess=20)
+            else:
+                p['mesh_obj'].material = gfx.MeshPhongMaterial(
+                    color="#ADD9E6", specular="#333333", shininess=20, opacity=0.25
+                )
+        if self._canvas:
+            self._canvas.request_draw()
+
     def unhighlight_parts(self):
         """Restore normal materials on all parts."""
         self.set_render_mode(self._render_mode)
