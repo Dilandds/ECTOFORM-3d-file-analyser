@@ -3166,6 +3166,16 @@ class STLViewerWidget(QWidget):
         if self._canvas:
             self._canvas.request_draw()
 
+    def isolate_parts(self, part_ids):
+        """Show only the specified parts, hide all others."""
+        id_set = set(part_ids)
+        for p in self._mesh_parts:
+            vis = p['id'] in id_set
+            p['visible'] = vis
+            p['mesh_obj'].visible = vis
+        if self._canvas:
+            self._canvas.request_draw()
+
     def highlight_part(self, part_id):
         """Briefly highlight a selected part (make others semi-transparent)."""
         import pygfx as gfx
