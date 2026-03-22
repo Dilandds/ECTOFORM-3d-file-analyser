@@ -727,6 +727,7 @@ class ViewControlsToolbar(QWidget):
                 self.draw_mode_enabled = False
                 self.draw_btn.set_active(False)
                 self.draw_btn.set_label("Draw ▼")
+                self.draw_toolbar.reset()
         self.screenshot_btn.set_active(self.screenshot_mode_enabled)
         self.toggle_screenshot.emit()
     
