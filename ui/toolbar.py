@@ -340,6 +340,15 @@ class ViewControlsToolbar(QWidget):
         self.draw_btn.clicked.connect(self._on_draw_clicked)
         self.draw_btn.setEnabled(False)  # Disabled until model is loaded
         content_layout.addWidget(self.draw_btn)
+
+        # Floating draw toolbar (shown when draw mode is active)
+        from ui.draw_toolbar import DrawToolbar
+        self.draw_toolbar = DrawToolbar(self)
+        self.draw_toolbar.color_picker_requested.connect(self.show_draw_color_picker)
+        self.draw_toolbar.eraser_toggled.connect(self.draw_eraser_toggled.emit)
+        self.draw_toolbar.undo_requested.connect(self.draw_undo_requested.emit)
+        self.draw_toolbar.clear_all_requested.connect(self.draw_clear_requested.emit)
+        content_layout.addWidget(self.draw_toolbar)
         
         self.fullscreen_btn = ToolbarButton("⛶", "Fullscreen", "")
         self.fullscreen_btn.clicked.connect(self._on_fullscreen_clicked)
