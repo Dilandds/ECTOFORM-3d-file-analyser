@@ -246,6 +246,7 @@ class PartsPanel(QWidget):
     # Signals to viewer
     part_visibility_changed = pyqtSignal(int, bool)   # part_id, visible
     part_selected = pyqtSignal(int)                    # part_id
+    group_selected = pyqtSignal(list)                  # list of child part_ids
     show_all_requested = pyqtSignal()
     hide_all_requested = pyqtSignal()
     invert_visibility_requested = pyqtSignal()
