@@ -257,6 +257,7 @@ class PartsPanel(QWidget):
         super().__init__(parent)
         self.setFixedWidth(240)
         self._selected_part_id = None
+        self._selected_group_id = None
         self._part_cards = {}      # part_id -> PartCard
         self._group_cards = {}     # group_id -> PartGroupCard
         self._build_ui()
