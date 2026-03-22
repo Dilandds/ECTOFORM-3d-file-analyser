@@ -754,6 +754,7 @@ class ViewControlsToolbar(QWidget):
         self.draw_mode_enabled = False
         self.draw_btn.set_label("Draw ▼")
         self.draw_btn.set_active(False)
+        self.draw_toolbar.reset()
     
     def show_draw_color_picker(self):
         """Show the color picker popup below the draw button."""
