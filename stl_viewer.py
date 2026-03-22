@@ -1732,6 +1732,24 @@ class STLViewerWindow(QMainWindow):
         if vw and hasattr(vw, 'set_draw_color'):
             vw.set_draw_color(color)
 
+    def _on_draw_eraser_toggled(self, enabled: bool):
+        """Handle eraser mode toggle."""
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'set_eraser_mode'):
+            vw.set_eraser_mode(enabled)
+
+    def _on_draw_undo(self):
+        """Undo last drawn stroke."""
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'undo_last_stroke'):
+            vw.undo_last_stroke()
+
+    def _on_draw_clear(self):
+        """Clear all drawn strokes."""
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'clear_drawings'):
+            vw.clear_drawings()
+
     
     def _on_screenshot_captured(self, pixmap):
         """Handle a captured screenshot from the viewer overlay."""
