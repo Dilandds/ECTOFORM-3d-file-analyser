@@ -434,10 +434,30 @@ class PartsPanel(QWidget):
 
     def _on_part_selected(self, part_id: int):
         self._selected_part_id = part_id
+        self._selected_group_id = None
         self._isolate_btn.setEnabled(True)
         for pid, card in self._part_cards.items():
             card.set_selected(pid == part_id)
+        for gid, gcard in self._group_cards.items():
+            gcard.set_selected(False)
         self.part_selected.emit(part_id)
+
+    def _on_group_selected(self, group_id: int):
+        """Handle group click — select all children for highlighting."""
+        self._selected_group_id = group_id
+        self._selected_part_id = None
+        self._isolate_btn.setEnabled(True)
+        # Deselect all individual part cards
+        for card in self._part_cards.values():
+            card.set_selected(False)
+        # Select the clicked group, deselect others
+        for gid, gcard in self._group_cards.items():
+            gcard.set_selected(gid == group_id)
+        # Emit group_selected with child IDs for highlighting
+        group_card = self._group_cards.get(group_id)
+        if group_card:
+            child_ids = group_card.get_child_ids()
+            self.group_selected.emit(child_ids)
 
     def _on_visibility_toggled(self, part_id: int, visible: bool):
         self.part_visibility_changed.emit(part_id, visible)
