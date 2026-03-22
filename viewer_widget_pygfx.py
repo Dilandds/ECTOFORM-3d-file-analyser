@@ -183,6 +183,7 @@ class STLViewerWidget(QWidget):
         self._current_stroke_line = None  # live preview line
         self._draw_event_filter_installed = False
         self._drawing_active = False  # True while mouse button is held
+        self._eraser_mode = False  # When True, clicks erase strokes instead of drawing
 
         # Arrow mode state
         self.arrow_mode = False
