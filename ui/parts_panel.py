@@ -105,7 +105,7 @@ class PartCard(QFrame):
 class PartGroupCard(QFrame):
     """An expandable group header that contains child PartCards."""
     visibility_toggled = pyqtSignal(int, bool)   # group_id, visible
-    selected = pyqtSignal(int)                    # group_id
+    selected = pyqtSignal(int)                    # group_id (emitted on click for selection)
     child_visibility_toggled = pyqtSignal(int, bool)  # child part_id, visible
 
     def __init__(self, group_id: int, name: str, face_count: int, children_data: list, parent=None):
@@ -113,6 +113,7 @@ class PartGroupCard(QFrame):
         self.group_id = group_id
         self._is_expanded = False
         self._is_visible = True
+        self._is_selected = False
         self._children_data = children_data
         self._child_cards = []
         self.face_count = face_count
@@ -182,7 +183,11 @@ class PartGroupCard(QFrame):
         self.visibility_toggled.emit(self.group_id, self._is_visible)
 
     def _update_style(self):
-        if not self._is_visible:
+        if self._is_selected:
+            self.setStyleSheet(f"""
+                QFrame {{ background-color: {default_theme.row_bg_hover}; border: 2px solid {default_theme.button_primary}; border-radius: 6px; }}
+            """)
+        elif not self._is_visible:
             self.setStyleSheet(f"""
                 QFrame {{ background-color: {default_theme.background}; border: 1px solid {default_theme.border_standard}; border-radius: 6px; opacity: 0.5; }}
             """)
@@ -191,6 +196,10 @@ class PartGroupCard(QFrame):
                 QFrame {{ background-color: {default_theme.row_bg_standard}; border: 1px solid {default_theme.button_primary}40; border-radius: 6px; }}
                 QFrame:hover {{ background-color: {default_theme.row_bg_hover}; }}
             """)
+
+    def set_selected(self, selected: bool):
+        self._is_selected = selected
+        self._update_style()
 
     def set_all_visible(self, visible: bool):
         """Set group + children visibility without emitting signals."""
@@ -219,6 +228,8 @@ class PartGroupCard(QFrame):
         return [c.part_id for c in self._child_cards]
 
     def mousePressEvent(self, event):
+        # Emit selection signal, then toggle expand
+        self.selected.emit(self.group_id)
         self._toggle_expand()
         super().mousePressEvent(event)
 
