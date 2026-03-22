@@ -105,7 +105,7 @@ class PartCard(QFrame):
 class PartGroupCard(QFrame):
     """An expandable group header that contains child PartCards."""
     visibility_toggled = pyqtSignal(int, bool)   # group_id, visible
-    selected = pyqtSignal(int)                    # group_id
+    selected = pyqtSignal(int)                    # group_id (emitted on click for selection)
     child_visibility_toggled = pyqtSignal(int, bool)  # child part_id, visible
 
     def __init__(self, group_id: int, name: str, face_count: int, children_data: list, parent=None):
@@ -113,6 +113,7 @@ class PartGroupCard(QFrame):
         self.group_id = group_id
         self._is_expanded = False
         self._is_visible = True
+        self._is_selected = False
         self._children_data = children_data
         self._child_cards = []
         self.face_count = face_count
@@ -182,7 +183,11 @@ class PartGroupCard(QFrame):
         self.visibility_toggled.emit(self.group_id, self._is_visible)
 
     def _update_style(self):
-        if not self._is_visible:
+        if self._is_selected:
+            self.setStyleSheet(f"""
+                QFrame {{ background-color: {default_theme.row_bg_hover}; border: 2px solid {default_theme.button_primary}; border-radius: 6px; }}
+            """)
+        elif not self._is_visible:
             self.setStyleSheet(f"""
                 QFrame {{ background-color: {default_theme.background}; border: 1px solid {default_theme.border_standard}; border-radius: 6px; opacity: 0.5; }}
             """)
@@ -191,6 +196,10 @@ class PartGroupCard(QFrame):
                 QFrame {{ background-color: {default_theme.row_bg_standard}; border: 1px solid {default_theme.button_primary}40; border-radius: 6px; }}
                 QFrame:hover {{ background-color: {default_theme.row_bg_hover}; }}
             """)
+
+    def set_selected(self, selected: bool):
+        self._is_selected = selected
+        self._update_style()
 
     def set_all_visible(self, visible: bool):
         """Set group + children visibility without emitting signals."""
@@ -219,6 +228,8 @@ class PartGroupCard(QFrame):
         return [c.part_id for c in self._child_cards]
 
     def mousePressEvent(self, event):
+        # Emit selection signal, then toggle expand
+        self.selected.emit(self.group_id)
         self._toggle_expand()
         super().mousePressEvent(event)
 
@@ -235,6 +246,7 @@ class PartsPanel(QWidget):
     # Signals to viewer
     part_visibility_changed = pyqtSignal(int, bool)   # part_id, visible
     part_selected = pyqtSignal(int)                    # part_id
+    group_selected = pyqtSignal(list)                  # list of child part_ids
     show_all_requested = pyqtSignal()
     hide_all_requested = pyqtSignal()
     invert_visibility_requested = pyqtSignal()
@@ -245,6 +257,7 @@ class PartsPanel(QWidget):
         super().__init__(parent)
         self.setFixedWidth(240)
         self._selected_part_id = None
+        self._selected_group_id = None
         self._part_cards = {}      # part_id -> PartCard
         self._group_cards = {}     # group_id -> PartGroupCard
         self._build_ui()
@@ -370,6 +383,7 @@ class PartsPanel(QWidget):
                     item['id'], item['name'], item.get('face_count', 0), children
                 )
                 group_card.child_visibility_toggled.connect(self._on_child_visibility_from_group)
+                group_card.selected.connect(self._on_group_selected)
                 self._group_cards[item['id']] = group_card
                 self._list_layout.insertWidget(self._list_layout.count() - 1, group_card)
 
@@ -421,10 +435,30 @@ class PartsPanel(QWidget):
 
     def _on_part_selected(self, part_id: int):
         self._selected_part_id = part_id
+        self._selected_group_id = None
         self._isolate_btn.setEnabled(True)
         for pid, card in self._part_cards.items():
             card.set_selected(pid == part_id)
+        for gid, gcard in self._group_cards.items():
+            gcard.set_selected(False)
         self.part_selected.emit(part_id)
+
+    def _on_group_selected(self, group_id: int):
+        """Handle group click — select all children for highlighting."""
+        self._selected_group_id = group_id
+        self._selected_part_id = None
+        self._isolate_btn.setEnabled(True)
+        # Deselect all individual part cards
+        for card in self._part_cards.values():
+            card.set_selected(False)
+        # Select the clicked group, deselect others
+        for gid, gcard in self._group_cards.items():
+            gcard.set_selected(gid == group_id)
+        # Emit group_selected with child IDs for highlighting
+        group_card = self._group_cards.get(group_id)
+        if group_card:
+            child_ids = group_card.get_child_ids()
+            self.group_selected.emit(child_ids)
 
     def _on_visibility_toggled(self, part_id: int, visible: bool):
         self.part_visibility_changed.emit(part_id, visible)
@@ -462,10 +496,22 @@ class PartsPanel(QWidget):
         self.invert_visibility_requested.emit()
 
     def _on_isolate(self):
-        if self._selected_part_id is None:
-            return
-        for pid, card in self._part_cards.items():
-            card.set_visible_state(pid == self._selected_part_id)
-        for group in self._group_cards.values():
-            group.update_eye_from_children()
-        self.isolate_selected_requested.emit(self._selected_part_id)
+        if self._selected_part_id is not None:
+            # Isolate single part
+            for pid, card in self._part_cards.items():
+                card.set_visible_state(pid == self._selected_part_id)
+            for group in self._group_cards.values():
+                group.update_eye_from_children()
+            self.isolate_selected_requested.emit(self._selected_part_id)
+        elif self._selected_group_id is not None:
+            # Isolate group — show only its children
+            group_card = self._group_cards.get(self._selected_group_id)
+            if group_card:
+                child_ids = set(group_card.get_child_ids())
+                for pid, card in self._part_cards.items():
+                    card.set_visible_state(pid in child_ids)
+                for group in self._group_cards.values():
+                    group.update_eye_from_children()
+                # Emit isolate for first child to trigger viewer update
+                if child_ids:
+                    self.isolate_selected_requested.emit(next(iter(child_ids)))
