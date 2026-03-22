@@ -1631,6 +1631,12 @@ class STLViewerWindow(QMainWindow):
         if vw and hasattr(vw, 'highlight_part'):
             vw.highlight_part(part_id)
 
+    def _group_select(self, part_ids):
+        """Highlight all parts in a group."""
+        vw = self.viewer_widget
+        if vw and hasattr(vw, 'highlight_parts'):
+            vw.highlight_parts(part_ids)
+
     def _parts_show_all(self):
         vw = self.viewer_widget
         if vw and hasattr(vw, 'show_all_parts'):
