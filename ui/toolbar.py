@@ -731,6 +731,7 @@ class ViewControlsToolbar(QWidget):
         self.draw_mode_enabled = not self.draw_mode_enabled
         if self.draw_mode_enabled:
             self.draw_btn.set_label("Drawing")
+            self.draw_toolbar.show()
             if self.ruler_mode_enabled:
                 self.ruler_mode_enabled = False
                 self.ruler_btn.set_active(False)
@@ -744,6 +745,7 @@ class ViewControlsToolbar(QWidget):
                 self.screenshot_btn.set_active(False)
         else:
             self.draw_btn.set_label("Draw ▼")
+            self.draw_toolbar.reset()
         self.draw_btn.set_active(self.draw_mode_enabled)
         self.toggle_draw.emit()
 
