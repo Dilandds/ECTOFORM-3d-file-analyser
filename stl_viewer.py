@@ -962,6 +962,11 @@ class STLViewerWindow(QMainWindow):
         if self.annotation_panel.isVisible():
             self._exit_annotation_mode()
         
+        # Exit parts mode and hide parts panel
+        if self.toolbar.parts_mode_enabled:
+            self.toolbar.parts_mode_enabled = False
+            self._exit_parts_mode()
+        
         # Exit screenshot mode if active and clear all screenshots
         if self.toolbar.screenshot_mode_enabled:
             self._exit_screenshot_mode()
@@ -1177,6 +1182,7 @@ class STLViewerWindow(QMainWindow):
         if self.toolbar.parts_mode_enabled:
             self.toolbar.parts_mode_enabled = False
             self._exit_parts_mode()
+            self._save_current_tab_state()
         if hasattr(vw, 'clear_drawings'):
             try:
                 vw.clear_drawings()
@@ -1606,6 +1612,9 @@ class STLViewerWindow(QMainWindow):
             vw.unhighlight_parts()
         self.right_panel_stack.setCurrentWidget(self._right_panel_placeholder)
         self.right_panel_stack.hide()
+        parent = self.right_panel_stack.parentWidget()
+        if parent:
+            parent.updateGeometry()
         if vw and hasattr(vw, 'reframe_for_viewport'):
             QTimer.singleShot(50, vw.reframe_for_viewport)
         self.toolbar.reset_parts_state()
