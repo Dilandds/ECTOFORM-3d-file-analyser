@@ -1208,10 +1208,10 @@ class STLViewerWidget(QWidget):
             return None
 
     def eventFilter(self, obj, event):
-        """Qt event filter: handle ruler_mode, annotation_mode, and draw_mode events."""
+        """Qt event filter: handle ruler_mode, annotation_mode, draw_mode, and parts_pick_mode events."""
         if self._canvas is None:
             return super().eventFilter(obj, event)
-        if not self.ruler_mode and not self.annotation_mode and not self.draw_mode and not self.arrow_mode:
+        if not self.ruler_mode and not self.annotation_mode and not self.draw_mode and not self.arrow_mode and not self.parts_pick_mode:
             return super().eventFilter(obj, event)
         # Check if obj is canvas, self, viewer_container, or a descendant of any
         is_our_widget = obj in (self._canvas, self, self.viewer_container)
@@ -1231,6 +1231,8 @@ class STLViewerWidget(QWidget):
                 return self._arrow_event_filter_impl(obj, event)
             if self.draw_mode:
                 return self._draw_event_filter_impl(obj, event)
+            if self.parts_pick_mode:
+                return self._parts_pick_event_filter_impl(obj, event)
         return super().eventFilter(obj, event)
 
     def _ruler_event_filter_impl(self, obj, event):
