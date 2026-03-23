@@ -3451,3 +3451,65 @@ class STLViewerWidget(QWidget):
     def unhighlight_parts(self):
         """Restore normal materials on all parts."""
         self.set_render_mode(self._render_mode)
+
+    def enable_parts_click_mode(self):
+        """Enable click-to-select picking for parts mode."""
+        self._parts_click_mode = True
+        if self._canvas is not None:
+            self._canvas.installEventFilter(self)
+            self.installEventFilter(self)
+            self.viewer_container.installEventFilter(self)
+
+    def disable_parts_click_mode(self):
+        """Disable click-to-select picking for parts mode."""
+        self._parts_click_mode = False
+        if self._canvas is not None:
+            self._canvas.removeEventFilter(self)
+            self.removeEventFilter(self)
+            self.viewer_container.removeEventFilter(self)
+
+    def _parts_event_filter_impl(self, obj, event):
+        """Handle left click in parts mode by ray-picking the clicked part."""
+        if not self._parts_click_mode or self._canvas is None:
+            return False
+        if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            pos = event.pos()
+            picked_part_id = self._pick_part_at(pos.x(), pos.y())
+            if picked_part_id is not None:
+                self.highlight_part(picked_part_id)
+                self.part_clicked.emit(picked_part_id)
+                return True
+        return False
+
+    def _pick_part_at(self, x, y):
+        """Return part_id for the front-most visible part under screen coords, or None."""
+        ray_origin, ray_direction = self._screen_to_ray(x, y)
+        if ray_origin is None:
+            return None
+        if not self._mesh_parts:
+            return None
+        try:
+            cam_pos = np.array(self._camera.local.position)
+            best_part_id = None
+            best_dist = None
+            for part in self._mesh_parts:
+                if not part.get('visible', True):
+                    continue
+                tri = part.get('trimesh')
+                if tri is None or len(tri.faces) == 0:
+                    continue
+                locations, _, _ = tri.ray.intersects_location(
+                    ray_origins=[ray_origin],
+                    ray_directions=[ray_direction],
+                )
+                if len(locations) == 0:
+                    continue
+                dists = np.linalg.norm(np.asarray(locations) - cam_pos, axis=1)
+                hit_dist = float(np.min(dists))
+                if best_dist is None or hit_dist < best_dist:
+                    best_dist = hit_dist
+                    best_part_id = part['id']
+            return best_part_id
+        except Exception as e:
+            logger.debug(f"_pick_part_at: {e}")
+            return None

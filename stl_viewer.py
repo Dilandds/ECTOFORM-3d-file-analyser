@@ -1628,6 +1628,16 @@ class STLViewerWindow(QMainWindow):
         panel.isolate_group_requested.connect(lambda pids: self._group_isolate(pids))
         panel.exit_parts_mode.connect(self._exit_parts_mode_from_panel)
 
+    def _on_viewer_part_clicked(self, part_id):
+        """Sync sidebar when a part is clicked directly in the viewer."""
+        tab = self._current_tab
+        if tab is None or not getattr(tab, 'parts_mode_active', False):
+            return
+        if tab.parts_panel is not None and hasattr(tab.parts_panel, 'select_part'):
+            tab.parts_panel.select_part(part_id)
+        else:
+            self._part_select(part_id)
+
     def _part_set_visible(self, part_id, visible):
         vw = self.viewer_widget
         if vw and hasattr(vw, 'set_part_visible'):
