@@ -1578,6 +1578,9 @@ class STLViewerWindow(QMainWindow):
             self.parts_stack.setCurrentWidget(tab.parts_panel)
             self.right_panel_stack.setCurrentWidget(self.parts_stack)
             self.right_panel_stack.show()
+            # Enable click-to-select in 3D viewport
+            if hasattr(vw, 'enable_parts_pick_mode'):
+                vw.enable_parts_pick_mode()
             if hasattr(vw, 'reframe_for_viewport'):
                 QTimer.singleShot(50, vw.reframe_for_viewport)
             logger.info("_toggle_parts_mode: Parts mode enabled")
@@ -1590,6 +1593,9 @@ class STLViewerWindow(QMainWindow):
         vw = self.viewer_widget
         if tab and tab.parts_panel:
             tab.parts_panel.hide()
+        # Disable click-to-select in 3D viewport
+        if vw and hasattr(vw, 'disable_parts_pick_mode'):
+            vw.disable_parts_pick_mode()
         # Restore all parts visible
         if vw and hasattr(vw, 'show_all_parts'):
             vw.show_all_parts()
@@ -1622,6 +1628,11 @@ class STLViewerWindow(QMainWindow):
         panel.isolate_group_requested.connect(lambda pids: self._group_isolate(pids))
         panel.exit_parts_mode.connect(self._exit_parts_mode_from_panel)
 
+        # Connect viewer part_clicked signal to panel selection
+        vw = tab.viewer_widget
+        if vw and hasattr(vw, 'part_clicked'):
+            vw.part_clicked.connect(lambda pid, p=panel: self._on_viewer_part_clicked(pid, p))
+
     def _part_set_visible(self, part_id, visible):
         vw = self.viewer_widget
         if vw and hasattr(vw, 'set_part_visible'):
@@ -1637,6 +1648,11 @@ class STLViewerWindow(QMainWindow):
         vw = self.viewer_widget
         if vw and hasattr(vw, 'highlight_parts'):
             vw.highlight_parts(part_ids)
+
+    def _on_viewer_part_clicked(self, part_id, panel):
+        """Handle click on a part in the 3D viewer — select it in the panel."""
+        # Find which card owns this part_id (could be a standalone card or a group containing it)
+        panel.select_part_by_id(part_id)
 
     def _parts_show_all(self):
         vw = self.viewer_widget

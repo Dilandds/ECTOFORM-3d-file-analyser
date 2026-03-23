@@ -274,7 +274,21 @@ class PartsPanel(QWidget):
     def get_selected_part_id(self):
         return self._selected_card_id
 
-    # ---- Internal ----
+    def select_part_by_id(self, part_id: int):
+        """Select a card by raw part_id (from 3D viewer click).
+        
+        If part_id matches a standalone card, select it directly.
+        If part_id belongs to a group's child_ids, select that group card.
+        """
+        # Direct match (standalone part)
+        if part_id in self._cards:
+            self._on_card_selected(part_id)
+            return
+        # Check if part_id is a child of a group
+        for card_id, card in self._cards.items():
+            if card.is_group and part_id in card.child_ids:
+                self._on_card_selected(card_id)
+                return
 
     def _on_card_selected(self, card_id: int):
         self._selected_card_id = card_id
