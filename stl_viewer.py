@@ -1593,6 +1593,9 @@ class STLViewerWindow(QMainWindow):
         vw = self.viewer_widget
         if tab and tab.parts_panel:
             tab.parts_panel.hide()
+        # Disable click-to-select in 3D viewport
+        if vw and hasattr(vw, 'disable_parts_pick_mode'):
+            vw.disable_parts_pick_mode()
         # Restore all parts visible
         if vw and hasattr(vw, 'show_all_parts'):
             vw.show_all_parts()
