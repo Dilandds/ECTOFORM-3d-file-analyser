@@ -110,6 +110,7 @@ class STLViewerWidget(QWidget):
     file_dropped = pyqtSignal(str)
     click_to_upload = pyqtSignal()
     drop_error = pyqtSignal(str)
+    part_clicked = pyqtSignal(int)
 
     def __init__(self, parent=None):
         _debug_print("STLViewerWidget (pygfx): Initializing...")
@@ -149,6 +150,7 @@ class STLViewerWidget(QWidget):
         self._grid_visible = False
         self._grid_objects = []  # All pygfx objects making up the bounding box grid
         self._axes_labels = []  # X, Y, Z text labels on the corner axes
+        self._parts_click_mode = False
 
         # Ruler/measurement mode state (matches viewer_widget.py interface)
         self.ruler_mode = False
