@@ -3041,14 +3041,14 @@ class STLViewerWidget(QWidget):
         if len(flat_parts) <= 1:
             return flat_parts
 
-        # Compute face count threshold — parts above this are standalone
-        face_counts = [p['face_count'] for p in flat_parts]
-        threshold_faces = max(500, int(np.percentile(face_counts, 80))) if len(face_counts) > 5 else 500
+        # Compute surface area threshold — parts above this are standalone
+        areas = [p.get('surface_area', 0.0) for p in flat_parts]
+        threshold_area = max(np.percentile(areas, 80), max(areas) * 0.05) if len(areas) > 5 else max(areas) * 0.05 if areas else 0
 
         large_parts = []
         small_parts = []
         for p in flat_parts:
-            if p['face_count'] >= threshold_faces:
+            if p.get('surface_area', 0.0) >= threshold_area:
                 large_parts.append(p)
             else:
                 small_parts.append(p)
