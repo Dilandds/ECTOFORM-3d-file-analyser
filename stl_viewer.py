@@ -1653,9 +1653,22 @@ class STLViewerWindow(QMainWindow):
             vw.highlight_parts(part_ids)
 
     def _on_viewer_part_clicked(self, part_id, panel):
-        """Handle click on a part in the 3D viewer — select it in the panel."""
-        # Find which card owns this part_id (could be a standalone card or a group containing it)
-        panel.select_part_by_id(part_id)
+        """Handle click on a part in the 3D viewer — add card if needed, then select."""
+        # Find the hierarchy entry that owns this part_id
+        item = self._find_hierarchy_entry_for(part_id)
+        if item:
+            panel.add_part(item)
+            panel.select_part_by_id(part_id)
+
+    def _find_hierarchy_entry_for(self, part_id):
+        """Find the hierarchy entry (standalone or group) that contains part_id."""
+        cached = getattr(self, '_cached_parts_hierarchy', [])
+        for entry in cached:
+            if entry['id'] == part_id:
+                return entry
+            if part_id in entry.get('child_ids', []):
+                return entry
+        return None
 
     def _parts_show_all(self):
         vw = self.viewer_widget
