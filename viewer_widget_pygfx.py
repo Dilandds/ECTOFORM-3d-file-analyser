@@ -3008,16 +3008,19 @@ class STLViewerWidget(QWidget):
 
     def get_parts_list(self):
         """Return list of part metadata for the PartsPanel."""
-        parts = [
-            {
+        parts = []
+        for p in self._mesh_parts:
+            surface_area = 0.0
+            if 'trimesh' in p and p['trimesh'] is not None:
+                surface_area = float(p['trimesh'].area)
+            parts.append({
                 'id': p['id'],
                 'name': p['name'],
                 'face_count': p.get('face_count', 0),
+                'surface_area': surface_area,
                 'visible': p.get('visible', True),
-            }
-            for p in self._mesh_parts
-        ]
-        logger.info(f"parts_debug (pygfx): get_parts_list returning {len(parts)} parts: {[(x['name'], x['face_count']) for x in parts]}")
+            })
+        logger.info(f"parts_debug (pygfx): get_parts_list returning {len(parts)} parts")
         return parts
 
     def get_parts_hierarchy(self):
