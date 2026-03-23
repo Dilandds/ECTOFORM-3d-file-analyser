@@ -105,6 +105,18 @@ class PartCard(QFrame):
         self.eye_btn.setText("👁" if visible else "👁‍🗨")
         self._update_style()
 
+    @staticmethod
+    def _format_area(area: float) -> str:
+        """Format surface area for display."""
+        if area >= 1e6:
+            return f"{area / 1e6:.1f} m²"
+        elif area >= 1e2:
+            return f"{area:.0f} cm²"
+        elif area >= 1:
+            return f"{area:.1f} cm²"
+        else:
+            return f"{area * 100:.1f} mm²"
+
     def mousePressEvent(self, event):
         self.selected.emit(self.part_id)
         super().mousePressEvent(event)
