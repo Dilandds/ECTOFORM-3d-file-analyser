@@ -187,8 +187,9 @@ class PartsPanel(QWidget):
         scroll.setWidget(self._list_widget)
         layout.addWidget(scroll, 1)
 
-        self._no_parts_label = QLabel("No parts detected")
+        self._no_parts_label = QLabel("Click a part in the viewer to add it here")
         self._no_parts_label.setAlignment(Qt.AlignCenter)
+        self._no_parts_label.setWordWrap(True)
         self._no_parts_label.setStyleSheet(f"color: {default_theme.text_subtext}; font-size: 11px; border: none; background: transparent; padding: 8px;")
         self._list_layout.insertWidget(0, self._no_parts_label)
 
