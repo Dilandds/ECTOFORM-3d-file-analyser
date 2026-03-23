@@ -627,6 +627,71 @@ class STLViewerWidget(QWidget):
                 except Exception as e:
                     logger.info(f"parts_debug (pygfx): normal clustering failed: {e}")
 
+                # --- Strategy 4: Curvature-based boundary detection ---
+                try:
+                    logger.info(f"parts_debug (pygfx): trying curvature-based segmentation on {n_faces} faces")
+                    adj = mesh_input.face_adjacency
+                    angles = mesh_input.face_adjacency_angles
+
+                    # Compute per-edge "sharpness" — higher angle = sharper edge
+                    # Use edges above a curvature threshold as cut boundaries
+                    for cut_angle_deg in [8, 5, 3, 2, 1]:
+                        cut_threshold = np.radians(cut_angle_deg)
+                        # Keep only edges BELOW the threshold (smooth connections)
+                        smooth_mask = angles < cut_threshold
+                        smooth_edges = adj[smooth_mask]
+
+                        G = nx.Graph()
+                        G.add_nodes_from(range(n_faces))
+                        G.add_edges_from(smooth_edges.tolist())
+                        face_groups = list(nx.connected_components(G))
+
+                        if len(face_groups) >= 2 and len(face_groups) <= 500:
+                            segments = []
+                            for grp in sorted(face_groups, key=len, reverse=True):
+                                try:
+                                    sub = mesh_input.submesh([np.array(sorted(grp))], append=True)
+                                    if isinstance(sub, trimesh.Trimesh) and len(sub.faces) > 0:
+                                        segments.append(sub)
+                                except Exception:
+                                    pass
+
+                            # Use a lower area threshold (0.1%) for curvature strategy
+                            min_area_curvature = total_area * 0.001
+                            valid = [s for s in segments if s.area >= min_area_curvature]
+                            if len(valid) >= 2:
+                                # Merge tiny fragments into nearest large segment
+                                large = [s for s in segments if s.area >= min_area_curvature]
+                                tiny = [s for s in segments if s.area < min_area_curvature]
+                                if tiny and large:
+                                    biggest_idx = max(range(len(large)), key=lambda i: large[i].area)
+                                    try:
+                                        merged = trimesh.util.concatenate([large[biggest_idx]] + tiny)
+                                        large[biggest_idx] = merged
+                                    except Exception:
+                                        pass
+                                logger.info(f"parts_debug (pygfx): curvature {cut_angle_deg}° produced {len(large)} segments")
+                                return large
+                except Exception as e:
+                    logger.info(f"parts_debug (pygfx): curvature strategy failed: {e}")
+
+                # --- Strategy 5: Convex decomposition (VHACD) ---
+                try:
+                    logger.info(f"parts_debug (pygfx): trying convex decomposition on {n_faces} faces")
+                    # trimesh convex_decomposition requires testVHACD or similar
+                    convex_parts = mesh_input.convex_decomposition(maxhulls=32)
+                    if convex_parts and len(convex_parts) >= 2:
+                        segments = []
+                        for part in convex_parts:
+                            if isinstance(part, trimesh.Trimesh) and len(part.faces) > 0:
+                                segments.append(part)
+                        if len(segments) >= 2:
+                            segments = _merge_tiny_segments(segments)
+                            logger.info(f"parts_debug (pygfx): convex decomposition produced {len(segments)} segments")
+                            return segments
+                except Exception as e:
+                    logger.info(f"parts_debug (pygfx): convex decomposition failed: {e}")
+
                 logger.info(f"parts_debug (pygfx): all segmentation strategies failed, returning single mesh")
                 return [mesh_input]
 
