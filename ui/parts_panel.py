@@ -169,7 +169,7 @@ class PartsPanel(QWidget):
         layout.addLayout(header)
 
         # Info
-        info = QLabel("Toggle visibility of parts and groups.")
+        info = QLabel("Click parts in the 3D view to select them. Toggle visibility with the eye icon.")
         info.setWordWrap(True)
         info.setStyleSheet(f"color: {default_theme.text_subtext}; font-size: 10px; border: none; background: transparent;")
         layout.addWidget(info)
