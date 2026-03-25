@@ -6,7 +6,8 @@ import os
 import sys
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
-    QSizePolicy, QFrame, QSpacerItem, QApplication, QMenu, QAction
+    QSizePolicy, QFrame, QSpacerItem, QApplication, QMenu, QAction,
+    QScrollArea,
 )
 from PyQt5.QtCore import Qt, QEvent, pyqtSignal, QPropertyAnimation, QEasingCurve, QSettings
 from PyQt5.QtGui import QFont, QFontMetrics, QPixmap
