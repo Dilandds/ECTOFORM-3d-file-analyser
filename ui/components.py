@@ -81,14 +81,26 @@ def confirm_dialog(parent, title: str, message: str) -> bool:
 class DimensionRow(QFrame):
     """A reusable dimension row component with hover effect."""
     
-    def __init__(self, label_text, value_text="--", parent=None):
+    def __init__(self, label_text, value_text="--", parent=None, color_variant=None):
         super().__init__(parent)
+        self.color_variant = color_variant
         self.setObjectName("dimensionRow")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFixedHeight(44)
+        
+        if color_variant and color_variant in ROW_GRADIENTS:
+            gradient, hover_bg = ROW_GRADIENTS[color_variant]
+            self._bg_style = f"background: {gradient};"
+            self._hover_style = f"background-color: {hover_bg};"
+            text_color = "white"
+        else:
+            self._bg_style = f"background-color: {default_theme.row_bg_standard};"
+            self._hover_style = f"background-color: {default_theme.row_bg_hover};"
+            text_color = None
+        
         self.setStyleSheet(f"""
             QFrame#dimensionRow {{
-                background-color: {default_theme.row_bg_standard};
+                {self._bg_style}
                 border-radius: 8px;
                 border: none;
             }}
@@ -101,8 +113,9 @@ class DimensionRow(QFrame):
         # Label
         label = QLabel(label_text)
         label.setObjectName("dimensionLabel")
-        label.setStyleSheet(f"background-color: transparent; color: {default_theme.text_secondary};")
-        label_font = QFont()
+        lbl_color = text_color or default_theme.text_secondary
+        label.setStyleSheet(f"background-color: transparent; color: {lbl_color};")
+        label_font = QFont("Calibri")
         label_font.setPointSize(11)
         label_font.setBold(True)
         label.setFont(label_font)
@@ -114,8 +127,9 @@ class DimensionRow(QFrame):
         # Value
         self.value_label = QLabel(value_text)
         self.value_label.setObjectName("dimensionValue")
-        self.value_label.setStyleSheet(f"background-color: transparent; color: {default_theme.text_primary};")
-        value_font = QFont()
+        val_color = text_color or default_theme.text_primary
+        self.value_label.setStyleSheet(f"background-color: transparent; color: {val_color};")
+        value_font = QFont("Calibri")
         value_font.setPointSize(13)
         value_font.setBold(True)
         self.value_label.setFont(value_font)
@@ -135,14 +149,14 @@ class DimensionRow(QFrame):
             if event.type() == QEvent.Enter:
                 self.setStyleSheet(f"""
                     QFrame#dimensionRow {{
-                        background-color: {default_theme.row_bg_hover};
+                        {self._hover_style}
                         border-radius: 8px;
                     }}
                 """)
             elif event.type() == QEvent.Leave:
                 self.setStyleSheet(f"""
                     QFrame#dimensionRow {{
-                        background-color: {default_theme.row_bg_standard};
+                        {self._bg_style}
                         border-radius: 8px;
                     }}
                 """)
