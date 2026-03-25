@@ -553,13 +553,8 @@ class ViewControlsToolbar(QWidget):
         for view_id, icon, label in views:
             action = menu.addAction(f"{icon}  {label}")
             action.setCheckable(True)
-            action.setChecked(not self.parts_mode_enabled and self._current_view == view_id)
+            action.setChecked(self._current_view == view_id)
             action.triggered.connect(lambda checked, v=view_id: self._set_view(v))
-        menu.addSeparator()
-        parts_action = menu.addAction("🧩  Parts")
-        parts_action.setCheckable(True)
-        parts_action.setChecked(self.parts_mode_enabled)
-        parts_action.triggered.connect(self._on_parts_selected)
         menu.exec_(self.view_btn.mapToGlobal(self.view_btn.rect().bottomLeft()))
 
     def _set_view(self, view_id):
