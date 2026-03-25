@@ -2277,21 +2277,63 @@ class STLViewerWidget(QWidget):
             logger.warning(f"_screenshot_zoom: {e}")
 
     def _on_screenshot_region_selected(self, rect):
-        """Capture the selected region from the canvas."""
+        """Capture the selected region at high resolution from the canvas."""
         from PyQt5.QtCore import QRect
-        # Grab the viewer container (which contains the rendered canvas)
-        full_pixmap = self.viewer_container.grab()
-        # Rect from overlay is in logical pixels; pixmap may have device pixel ratio
-        dpr = full_pixmap.devicePixelRatio() if hasattr(full_pixmap, 'devicePixelRatio') else 1.0
-        if dpr > 1.0:
-            device_rect = QRect(
-                int(rect.x() * dpr), int(rect.y() * dpr),
-                int(rect.width() * dpr), int(rect.height() * dpr)
-            )
-            cropped = full_pixmap.copy(device_rect)
-            cropped.setDevicePixelRatio(dpr)
-        else:
-            cropped = full_pixmap.copy(rect)
+        from PyQt5.QtGui import QImage, QPixmap
+        import numpy as np
+
+        SCALE = 3  # render at 3× resolution for high-res output
+
+        captured = False
+        # Try pygfx renderer snapshot at high resolution
+        if self._renderer and self._scene and self._camera:
+            try:
+                cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.viewer_container.width(), self.viewer_container.height())
+                target_w, target_h = int(cw * SCALE), int(ch * SCALE)
+
+                img_array = self._renderer.snapshot(
+                    self._scene, self._camera,
+                    (target_w, target_h)
+                )
+                if img_array is not None:
+                    img_array = np.ascontiguousarray(img_array)
+                    h_img, w_img = img_array.shape[:2]
+                    channels = img_array.shape[2] if img_array.ndim == 3 else 1
+
+                    if channels == 4:
+                        fmt = QImage.Format_RGBA8888
+                    else:
+                        fmt = QImage.Format_RGB888
+
+                    qimg = QImage(img_array.data, w_img, h_img, img_array.strides[0], fmt)
+                    full_pixmap = QPixmap.fromImage(qimg.copy())
+
+                    # Scale the selection rect to high-res coordinates
+                    sx = target_w / cw
+                    sy = target_h / ch
+                    hr_rect = QRect(
+                        int(rect.x() * sx), int(rect.y() * sy),
+                        int(rect.width() * sx), int(rect.height() * sy)
+                    )
+                    cropped = full_pixmap.copy(hr_rect)
+                    captured = True
+            except Exception as e:
+                logger.warning(f"High-res screenshot failed, falling back to grab(): {e}")
+
+        # Fallback: widget grab (screen resolution)
+        if not captured:
+            full_pixmap = self.viewer_container.grab()
+            dpr = full_pixmap.devicePixelRatio() if hasattr(full_pixmap, 'devicePixelRatio') else 1.0
+            if dpr > 1.0:
+                device_rect = QRect(
+                    int(rect.x() * dpr), int(rect.y() * dpr),
+                    int(rect.width() * dpr), int(rect.height() * dpr)
+                )
+                cropped = full_pixmap.copy(device_rect)
+                cropped.setDevicePixelRatio(dpr)
+            else:
+                cropped = full_pixmap.copy(rect)
+
         if self._screenshot_captured_callback:
             self._screenshot_captured_callback(cropped)
 
