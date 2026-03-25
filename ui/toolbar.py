@@ -602,7 +602,7 @@ class ViewControlsToolbar(QWidget):
             self.ruler_btn.set_icon("📐")
             if self.parts_mode_enabled:
                 self.parts_mode_enabled = False
-                self._restore_view_btn()
+                self.parts_btn.set_active(False)
                 self.toggle_parts.emit()
             if self.annotation_mode_enabled:
                 self.annotation_mode_enabled = False
@@ -669,7 +669,7 @@ class ViewControlsToolbar(QWidget):
             self.annotation_btn.set_icon("✏️")
             if self.parts_mode_enabled:
                 self.parts_mode_enabled = False
-                self._restore_view_btn()
+                self.parts_btn.set_active(False)
                 self.toggle_parts.emit()
             if self.ruler_mode_enabled:
                 self.ruler_mode_enabled = False
@@ -703,7 +703,7 @@ class ViewControlsToolbar(QWidget):
             self.annotation_btn.set_icon("➤")
             if self.parts_mode_enabled:
                 self.parts_mode_enabled = False
-                self._restore_view_btn()
+                self.parts_btn.set_active(False)
                 self.toggle_parts.emit()
             if self.ruler_mode_enabled:
                 self.ruler_mode_enabled = False
@@ -760,7 +760,7 @@ class ViewControlsToolbar(QWidget):
         if self.screenshot_mode_enabled:
             if self.parts_mode_enabled:
                 self.parts_mode_enabled = False
-                self._restore_view_btn()
+                self.parts_btn.set_active(False)
                 self.toggle_parts.emit()
             if self.ruler_mode_enabled:
                 self.ruler_mode_enabled = False
@@ -836,7 +836,7 @@ class ViewControlsToolbar(QWidget):
             self.draw_btn.set_label("Drawing ▼")
             if self.parts_mode_enabled:
                 self.parts_mode_enabled = False
-                self._restore_view_btn()
+                self.parts_btn.set_active(False)
                 self.toggle_parts.emit()
             if self.ruler_mode_enabled:
                 self.ruler_mode_enabled = False
