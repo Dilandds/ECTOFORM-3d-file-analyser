@@ -239,7 +239,7 @@ class ViewControlsToolbar(QWidget):
         # State tracking
         self.grid_enabled = True
         self.dark_theme = False
-        self.render_mode = 'solid'  # 'solid', 'wireframe', 'shaded'
+        self.render_mode = 'shaded'  # 'shaded', 'solid', 'wireframe'
         self.is_fullscreen = False
         self.ruler_mode_enabled = False
         self.annotation_mode_enabled = False
