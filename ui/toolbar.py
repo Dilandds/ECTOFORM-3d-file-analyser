@@ -739,8 +739,6 @@ class ViewControlsToolbar(QWidget):
 
         self.parts_mode_enabled = not self.parts_mode_enabled
         if self.parts_mode_enabled:
-            self.view_btn.set_label("Parts ▼")
-            self.view_btn.set_icon("🧩")
             if self.ruler_mode_enabled:
                 self.ruler_mode_enabled = False
                 self.ruler_btn.set_active(False)
@@ -753,11 +751,7 @@ class ViewControlsToolbar(QWidget):
                 self._eraser_active = False
                 self.draw_btn.set_active(False)
                 self.draw_btn.set_label("Draw ▼")
-        else:
-            icons = {"front": "⬚", "rear": "⬛", "left": "⊏", "right": "⊐", "top": "⊤", "bottom": "⊥"}
-            labels = {"front": "Front", "rear": "Rear", "left": "Left", "right": "Right", "top": "Top", "bottom": "Bottom"}
-            self.view_btn.set_icon(icons[self._current_view])
-            self.view_btn.set_label(f"{labels[self._current_view]} ▼")
+        self.parts_btn.set_active(self.parts_mode_enabled)
         self.toggle_parts.emit()
     
     def _on_screenshot_clicked(self):
