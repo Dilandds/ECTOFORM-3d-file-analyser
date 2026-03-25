@@ -561,6 +561,7 @@ class ViewControlsToolbar(QWidget):
         """Set view preset and emit signal."""
         if self.parts_mode_enabled:
             self.parts_mode_enabled = False
+            self.parts_btn.set_active(False)
             self.toggle_parts.emit()
         self._current_view = view_id
         icons = {"front": "⬚", "rear": "⬛", "left": "⊏", "right": "⊐", "top": "⊤", "bottom": "⊥"}
