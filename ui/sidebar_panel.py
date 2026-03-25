@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QEvent, pyqtSignal, QSettings
 from PyQt5.QtGui import QFont, QColor, QDoubleValidator
 from ui.components import DimensionRow, SurfaceAreaRow, WeightRow, Separator, ScaleResultRow, ReportCheckbox, confirm_dialog
-from ui.styles import get_button_style, default_theme
+from ui.styles import get_button_style, default_theme, make_font
 
 logger = logging.getLogger(__name__)
 
