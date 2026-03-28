@@ -263,7 +263,7 @@ class AnnotationCard(QFrame):
                 padding: 0; min-width: 28px; min-height: 28px;
             }}
             QPushButton:hover {{
-                background-color: #3A2020;
+                background-color: #2A1518;
                 color: #F87171;
                 border-radius: 14px;
             }}
@@ -439,8 +439,8 @@ class AnnotationPanel(QWidget):
         header = QFrame()
         header.setStyleSheet("""
             QFrame {
-                background-color: #3A3520;
-                border: 1px solid #5A5030;
+                background-color: #1A3A20;
+                border: 1px solid #244A30;
                 border-radius: 8px;
             }
         """)
