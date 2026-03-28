@@ -21,12 +21,12 @@ def _dropdown_arrow_url():
 class Theme:
     """Centralized theme with all color definitions."""
     
-    # Background colors – dark teal/blue palette derived from #2596be
-    background = '#0D1B2A'
-    card_background = '#132638'
-    gradient_start = '#0D1B2A'
-    gradient_mid = '#153247'
-    gradient_end = '#1B4060'
+    # Background colors – dark palette
+    background = '#22262c'
+    card_background = '#2a2e34'
+    gradient_start = '#22262c'
+    gradient_mid = '#3a3e48'
+    gradient_end = '#717584'
     
     # Text colors
     text_primary = '#E0ECF4'
