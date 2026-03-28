@@ -21,12 +21,12 @@ def _dropdown_arrow_url():
 class Theme:
     """Centralized theme with all color definitions."""
     
-    # Background colors – dark teal/blue palette derived from #2596be
-    background = '#0D1B2A'
-    card_background = '#132638'
-    gradient_start = '#0D1B2A'
-    gradient_mid = '#153247'
-    gradient_end = '#1B4060'
+    # Background colors – dark palette
+    background = '#22262c'
+    card_background = '#2a2e34'
+    gradient_start = '#22262c'
+    gradient_mid = '#3a3e48'
+    gradient_end = '#717584'
     
     # Text colors
     text_primary = '#E0ECF4'
@@ -39,38 +39,38 @@ class Theme:
     button_primary = '#2596BE'
     button_primary_hover = '#1E7FA3'
     button_primary_pressed = '#186A8A'
-    button_default_bg = '#1A3448'
-    button_default_border = '#244A62'
+    button_default_bg = '#2e323a'
+    button_default_border = '#3a3e48'
     
     # Row colors
-    row_bg_standard = '#162D40'
-    row_bg_hover = '#1E3A52'
-    row_bg_highlight = '#1A3A50'
-    row_bg_highlight_hover = '#22485E'
+    row_bg_standard = '#2a2e34'
+    row_bg_hover = '#32363e'
+    row_bg_highlight = '#2e3840'
+    row_bg_highlight_hover = '#364048'
     
     # Border and separator colors
-    border_standard = '#1E3A52'
-    border_light = '#244A62'
-    border_medium = '#2E5A72'
+    border_standard = '#32363e'
+    border_light = '#3a3e48'
+    border_medium = '#4a4e58'
     border_highlight = '#2596BE'
-    separator = '#1E3A52'
+    separator = '#32363e'
     
     # Special colors
     icon_blue = '#2596BE'
-    icon_info_gray = '#7A98AE'
+    icon_info_gray = '#8a8e98'
     icon_warning = '#E8A040'
-    scrollbar_handle = '#244A62'
-    scrollbar_handle_hover = '#2E5A72'
-    combobox_arrow = '#7A98AE'
+    scrollbar_handle = '#3a3e48'
+    scrollbar_handle_hover = '#4a4e58'
+    combobox_arrow = '#8a8e98'
     
     # Footer colors
-    footer_warning_bg = '#2A2818'
-    footer_warning_border = '#3A3820'
+    footer_warning_bg = '#2e2a20'
+    footer_warning_border = '#3a3628'
     
     # Input colors
-    input_bg = '#132638'
-    input_border = '#244A62'
-    input_border_hover = '#2E5A72'
+    input_bg = '#2a2e34'
+    input_border = '#3a3e48'
+    input_border_hover = '#4a4e58'
     
     def get_color(self, color_name):
         """Get color by name."""
