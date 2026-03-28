@@ -371,11 +371,11 @@ class TechnicalSidebar(QWidget):
         rm_btn.setCursor(Qt.PointingHandCursor)
         rm_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FEE2E2; border: none; border-radius: 13px;
-                color: #DC2626; font-size: 14px; font-weight: bold;
+                background-color: #3A2020; border: none; border-radius: 13px;
+                color: #F87171; font-size: 14px; font-weight: bold;
                 padding: 0; min-width: 26px; min-height: 26px;
             }
-            QPushButton:hover { background-color: #FECACA; }
+            QPushButton:hover { background-color: #4A2828; }
         """)
         rm_btn.clicked.connect(lambda: self._remove_manufacturer_row(row, le))
         rl.addWidget(rm_btn)
