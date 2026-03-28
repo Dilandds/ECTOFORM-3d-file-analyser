@@ -334,7 +334,7 @@ class ScreenshotPanel(QWidget):
         self.clear_btn.setStyleSheet(f"""
             QPushButton#clearScreenshotsBtn {{
                 background-color: {default_theme.button_default_bg};
-                color: {default_theme.text_secondary};
+                color: {default_theme.text_light_secondary};
                 border: 1px solid {default_theme.button_default_border};
                 border-radius: 6px;
                 padding: 6px 12px;
