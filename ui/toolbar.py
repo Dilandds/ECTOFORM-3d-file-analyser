@@ -598,9 +598,8 @@ class ViewControlsToolbar(QWidget):
         """Set the render mode and update button appearance."""
         self.render_mode = mode
         icons = {'solid': '◇', 'wireframe': '◈', 'shaded': '◆'}
-        labels = {'solid': 'Solid', 'wireframe': 'Wireframe', 'shaded': 'Shaded'}
         self.render_mode_btn.set_icon(icons[mode])
-        self.render_mode_btn.set_label(f"{labels[mode]} ▼")
+        self.render_mode_btn.set_label("Visual Style ▼")
         self.render_mode_btn.set_active(mode != 'shaded')
         self.render_mode_changed.emit(mode)
     
