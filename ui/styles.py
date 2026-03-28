@@ -68,9 +68,9 @@ class Theme:
     footer_warning_border = '#3a3628'
     
     # Input colors
-    input_bg = '#132638'
-    input_border = '#244A62'
-    input_border_hover = '#2E5A72'
+    input_bg = '#2a2e34'
+    input_border = '#3a3e48'
+    input_border_hover = '#4a4e58'
     
     def get_color(self, color_name):
         """Get color by name."""
