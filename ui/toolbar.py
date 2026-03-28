@@ -7,13 +7,112 @@ import sys
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
     QSizePolicy, QFrame, QSpacerItem, QApplication, QMenu, QAction,
-    QScrollArea,
+    QScrollArea, QWidgetAction,
 )
 from PyQt5.QtCore import Qt, QEvent, pyqtSignal, QPropertyAnimation, QEasingCurve, QSettings
-from PyQt5.QtGui import QFont, QFontMetrics, QPixmap, QIcon
+from PyQt5.QtGui import QFont, QFontMetrics, QPixmap, QPainter, QColor, QImage
 from ui.styles import default_theme, make_font
 
 logger = logging.getLogger(__name__)
+
+
+def _menu_diamond_px() -> int:
+    """Match ◆/◇/◈ in QMenu items (font-size 11px)."""
+    fm = QFontMetrics(make_font(size=11))
+    w = fm.horizontalAdvance("◆")
+    h = fm.boundingRect("◆").height()
+    return max(10, min(12, int(round(max(w, h)))))
+
+
+def _parts_menu_pixmap_fallback(size: int) -> QPixmap:
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(0, 0, 0))
+    gap = max(0.5, size * 0.08)
+    cell = (size - 3 * gap) / 2.0
+    for r in range(2):
+        for c in range(2):
+            x = gap + c * (cell + gap * 0.5)
+            y = gap + r * (cell + gap * 0.5)
+            p.drawRoundedRect(x, y, cell, cell, 1.0, 1.0)
+    p.end()
+    return pm
+
+
+def _load_parts_menu_pixmap(path: str) -> QPixmap:
+    """Scale parts icon to same visual size as diamond glyphs (not QIcon — avoids macOS tint)."""
+    px = _menu_diamond_px()
+    if not path or not os.path.isfile(path):
+        return QPixmap()
+    pm = QPixmap(path)
+    if pm.isNull():
+        return QPixmap()
+    pm = pm.scaled(px, px, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    img = pm.toImage().convertToFormat(QImage.Format_ARGB32_Premultiplied)
+    return QPixmap.fromImage(img)
+
+
+class _PartsMenuRow(QWidget):
+    """Parts row aligned like checkable ◆  Shaded rows; pixmap matches diamond size."""
+
+    clicked = pyqtSignal()
+
+    def __init__(self, pixmap_path: str, checked: bool, enabled: bool, parent=None):
+        super().__init__(parent)
+        self.setObjectName("partsMenuRow")
+        self.setAutoFillBackground(False)
+        self._enabled = enabled
+        menu_font = make_font(size=11)
+        fm = QFontMetrics(menu_font)
+        gap_two_spaces = fm.horizontalAdvance("  ")
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(16, 6, 16, 6)
+        lay.setSpacing(0)
+
+        chk = QLabel("✓" if checked else "")
+        chk.setFixedWidth(18)
+        chk.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        chk.setFont(menu_font)
+        chk.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 11px;")
+
+        pix_lbl = QLabel()
+        pix_lbl.setAutoFillBackground(False)
+        pix_lbl.setAttribute(Qt.WA_TranslucentBackground, True)
+        pix_lbl.setAlignment(Qt.AlignCenter)
+        pm = _load_parts_menu_pixmap(pixmap_path)
+        if pm.isNull():
+            pm = _parts_menu_pixmap_fallback(_menu_diamond_px())
+        pix_lbl.setPixmap(pm)
+        pix_lbl.setFixedSize(pm.size())
+        pix_lbl.setStyleSheet("background: transparent; border: none;")
+
+        txt = QLabel("Parts")
+        txt.setFont(menu_font)
+        txt.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 11px;")
+
+        lay.addWidget(chk)
+        lay.addWidget(pix_lbl)
+        lay.addSpacing(gap_two_spaces)
+        lay.addWidget(txt)
+        lay.addStretch()
+
+        # Do not QWidget.setEnabled(False) or row opacity — Qt greys out QLabel pixmaps (looks like a flat gray tile).
+        # Parts is inactive without a model, but the black icon should stay visually black like the ◆ glyphs.
+        self.setCursor(Qt.PointingHandCursor if enabled else Qt.ArrowCursor)
+        if not enabled:
+            chk.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 11px;")
+            txt.setStyleSheet(f"color: {default_theme.text_secondary}; font-size: 11px;")
+        hover = f"QWidget#partsMenuRow:hover {{ background-color: {default_theme.row_bg_hover}; }}"
+        self.setStyleSheet(hover)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self._enabled:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 class ToolbarButton(QPushButton):
@@ -482,12 +581,9 @@ class ViewControlsToolbar(QWidget):
         self.toggle_theme.emit()
     
     def _get_parts_icon_path(self):
-        """Return path to the black parts icon."""
-        if getattr(sys, 'frozen', False):
-            base = sys._MEIPASS
-        else:
-            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(base, 'assets', 'parts_icon_black.png')
+        """Return path to the black parts icon (dev + PyInstaller)."""
+        from ui.styles import _get_assets_dir
+        return str(_get_assets_dir() / "parts_icon_black.png")
 
     def _show_render_mode_menu(self):
         """Show dropdown menu for render mode and parts selection."""
@@ -528,17 +624,21 @@ class ViewControlsToolbar(QWidget):
             action.setChecked(self.render_mode == mode_id)
             action.triggered.connect(lambda checked, m=mode_id: self._set_render_mode(m))
 
-        # Separator + Parts option
+        # Separator + Parts (QPixmap in QLabel — QAction+QIcon is tinted gray / oversized on macOS)
         menu.addSeparator()
         parts_icon_path = self._get_parts_icon_path()
-        if parts_icon_path and os.path.exists(parts_icon_path):
-            parts_action = menu.addAction(QIcon(parts_icon_path), "Parts")
-        else:
-            parts_action = menu.addAction("■  Parts")
-        parts_action.setCheckable(True)
-        parts_action.setChecked(self.parts_mode_enabled)
-        parts_action.setEnabled(self.stl_loaded)
-        parts_action.triggered.connect(self._on_parts_selected)
+        if not (parts_icon_path and os.path.isfile(parts_icon_path)):
+            parts_icon_path = ""
+        row = _PartsMenuRow(parts_icon_path, self.parts_mode_enabled, self.stl_loaded, menu)
+        wa = QWidgetAction(menu)
+        wa.setDefaultWidget(row)
+        menu.addAction(wa)
+
+        def _parts_row_activate():
+            self._on_parts_selected()
+            menu.close()
+
+        row.clicked.connect(_parts_row_activate)
 
         # Show below the button
         menu.exec_(self.render_mode_btn.mapToGlobal(
