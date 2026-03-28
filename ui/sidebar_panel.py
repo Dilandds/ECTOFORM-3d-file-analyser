@@ -127,8 +127,8 @@ class SidebarPanel(QWidget):
         upload_card.setObjectName("uploadCard")
         upload_card.setStyleSheet(f"""
             QFrame#uploadCard {{
-                background-color: {default_theme.card_background};
-                border: 1px solid {default_theme.border_standard};
+                background-color: #2a2e34;
+                border: 1px solid #3a3e48;
                 border-radius: 12px;
             }}
         """)
