@@ -167,48 +167,51 @@ class TechnicalPDFExporter:
             # ==================== PAGE 2: Fiche Technique ====================
             story.append(PageBreak())
 
-            # --- Header fields row (Nom / Référence / Date / Livraison style) ---
-            header_data = []
-            header_labels = []
-
+            # --- Header fields from sidebar metadata ---
             prop_val = metadata.get("property") or ""
             title_val = metadata.get("title") or ""
             manufacturers = metadata.get("manufacturers", [])
             manuf_val = ", ".join(manufacturers) if manufacturers else ""
             start_date = metadata.get("start_date") or ""
             deadline = metadata.get("deadline") or ""
+            comments = metadata.get("comments") or ""
 
-            # Build header fields
-            field_pairs = [
-                ("Nom:", prop_val),
-                ("Référence:", title_val),
-                ("Date:", start_date),
-                ("Livraison:", deadline),
-            ]
+            # Build header fields dynamically from sidebar fields
+            field_pairs = []
+            if prop_val:
+                field_pairs.append(("Property:", prop_val))
+            if title_val:
+                field_pairs.append(("Title:", title_val))
+            if manuf_val:
+                field_pairs.append(("Manufacturer:", manuf_val))
+            if start_date:
+                field_pairs.append(("Date:", start_date))
+            if deadline:
+                field_pairs.append(("Deadline:", deadline))
 
-            header_row_labels = []
-            header_row_values = []
-            for label, value in field_pairs:
-                header_row_labels.append(Paragraph(f"<u>{label}</u>", field_label_style))
-                val_text = value if value else " "
-                header_row_values.append(Paragraph(val_text, field_value_style))
+            if field_pairs:
+                header_row_labels = []
+                header_row_values = []
+                for label, value in field_pairs:
+                    header_row_labels.append(Paragraph(f"<u>{label}</u>", field_label_style))
+                    header_row_values.append(Paragraph(value, field_value_style))
 
-            # Two-row table: labels on top, values below
-            col_w = page_width / 4
-            header_table = Table(
-                [header_row_labels, header_row_values],
-                colWidths=[col_w] * 4,
-            )
-            header_table.setStyle(TableStyle([
-                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
-                ("TOPPADDING", (0, 1), (-1, 1), 2),
-                ("BOTTOMPADDING", (0, 1), (-1, 1), 6),
-                ("LINEBELOW", (0, 1), (-1, 1), 0.5, colors.HexColor("#94A3B8")),
-            ]))
-            story.append(header_table)
-            story.append(Spacer(1, 10))
+                num_cols = len(field_pairs)
+                col_w = page_width / num_cols
+                header_table = Table(
+                    [header_row_labels, header_row_values],
+                    colWidths=[col_w] * num_cols,
+                )
+                header_table.setStyle(TableStyle([
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
+                    ("TOPPADDING", (0, 1), (-1, 1), 2),
+                    ("BOTTOMPADDING", (0, 1), (-1, 1), 6),
+                    ("LINEBELOW", (0, 1), (-1, 1), 0.5, colors.HexColor("#94A3B8")),
+                ]))
+                story.append(header_table)
+                story.append(Spacer(1, 10))
 
             # --- Title "Fiche technique" ---
             fiche_title_style = ParagraphStyle(
@@ -233,72 +236,71 @@ class TechnicalPDFExporter:
             story.append(line_table)
             story.append(Spacer(1, 10))
 
-            # --- Manufacturer row if present ---
-            if manuf_val:
-                manuf_row = Table(
-                    [[Paragraph("<b>Fabricant:</b>", field_label_style),
-                      Paragraph(manuf_val, field_value_style)]],
-                    colWidths=[30 * mm, page_width - 30 * mm],
-                )
-                manuf_row.setStyle(TableStyle([
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ]))
-                story.append(manuf_row)
-                story.append(Spacer(1, 4))
-
             # --- Comments ---
-            if metadata.get("comments"):
-                story.append(Paragraph("Commentaires", section_style))
+            if comments:
+                story.append(Paragraph("Comments", section_style))
                 story.append(Paragraph(
-                    metadata["comments"].replace("\n", "<br/>"), body_style
+                    comments.replace("\n", "<br/>"), body_style
                 ))
                 story.append(Spacer(1, 8))
 
-            # --- Annotations table (N° | Annotations) ---
+            # --- Annotations table (N° | Annotations | Photos) ---
+            # Only show actual annotation rows, no empty filler
+            num_annotations = len(annotations) if annotations else 0
+
+            # Check which annotations have photos
+            has_photos = False
+            photo_entries = []
+            if annotations:
+                for idx, ann in enumerate(annotations, start=1):
+                    paths = getattr(ann, "image_paths", []) or []
+                    existing = [p for p in paths if os.path.exists(p)]
+                    if existing:
+                        has_photos = True
+                        for img_path in existing:
+                            photo_entries.append((idx, img_path))
+
             ann_header = [
                 Paragraph("<b>N°</b>", cell_bold_style),
                 Paragraph("<b>Annotations</b>", cell_bold_style),
+                Paragraph("<b>Photos</b>", cell_bold_style),
             ]
 
-            # Determine number of rows: at least 19 (like the reference), or more if needed
-            num_annotations = len(annotations) if annotations else 0
-            total_rows = max(19, num_annotations)
-
             ann_rows = [ann_header]
-            for idx in range(1, total_rows + 1):
-                if idx <= num_annotations:
-                    ann = annotations[idx - 1]
+            if annotations:
+                for idx, ann in enumerate(annotations, start=1):
                     label = getattr(ann, "label", "") or ""
                     text = getattr(ann, "text", "") or ""
                     desc = f"<b>{label}</b>"
                     if text:
                         desc += f" — {text.replace(chr(10), '<br/>')}"
+                    # Check if this annotation has photos
+                    paths = getattr(ann, "image_paths", []) or []
+                    has_img = any(os.path.exists(p) for p in paths)
+                    photo_indicator = "Yes" if has_img else ""
                     ann_rows.append([
                         Paragraph(f"<b>{idx}</b>", cell_bold_style),
                         Paragraph(desc, cell_style),
-                    ])
-                else:
-                    # Empty row
-                    ann_rows.append([
-                        Paragraph(f"<b>{idx}</b>", cell_bold_style),
-                        Paragraph("", cell_style),
+                        Paragraph(photo_indicator, cell_style),
                     ])
 
             num_col_w = 12 * mm
-            ann_table = Table(
+            photo_col_w = 18 * mm
+            ann_table_widget = Table(
                 ann_rows,
-                colWidths=[num_col_w, page_width - num_col_w],
+                colWidths=[num_col_w, page_width - num_col_w - photo_col_w, photo_col_w],
             )
 
             border_color = colors.HexColor("#94A3B8")
-            ann_table.setStyle(TableStyle([
+            total_data_rows = len(ann_rows) - 1  # exclude header
+            ann_table_widget.setStyle(TableStyle([
                 # Header
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F0F4F8")),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, 0), 11),
                 # All cells
                 ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                ("ALIGN", (2, 0), (2, -1), "CENTER"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("GRID", (0, 0), (-1, -1), 0.5, border_color),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
@@ -307,73 +309,64 @@ class TechnicalPDFExporter:
                 ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                 # Alternate row shading
                 *[("BACKGROUND", (0, r), (-1, r), colors.HexColor("#FAFBFC"))
-                  for r in range(2, total_rows + 1, 2)],
+                  for r in range(2, total_data_rows + 1, 2)],
             ]))
-            story.append(ann_table)
+            story.append(ann_table_widget)
 
-            # ==================== PAGE 3: Photos (Optional) ====================
-            has_photos = False
-            if annotations:
-                for ann in annotations:
-                    paths = getattr(ann, "image_paths", []) or []
-                    if paths:
-                        has_photos = True
-                        break
+            # ==================== Photos Section ====================
+            # If there are photos, add them after the table (same page if space, otherwise page 3)
+            if has_photos and photo_entries:
+                story.append(Spacer(1, 14))
 
-            if has_photos:
-                story.append(PageBreak())
-                story.append(Paragraph("Photos", section_style))
+                photo_title_style = ParagraphStyle(
+                    "PhotoTitle",
+                    parent=styles["Heading2"],
+                    fontName="Helvetica-Bold",
+                    fontSize=14,
+                    spaceBefore=8,
+                    spaceAfter=6,
+                    textColor=colors.HexColor("#1E293B"),
+                )
+                story.append(Paragraph("Annotation Photos", photo_title_style))
                 story.append(Spacer(1, 6))
 
-                # Build photo grid: collect all (annotation_number, image_path) pairs
-                photo_entries = []
-                for idx, ann in enumerate(annotations, start=1):
-                    paths = getattr(ann, "image_paths", []) or []
-                    for img_path in paths:
-                        if os.path.exists(img_path):
-                            photo_entries.append((idx, img_path))
+                # Layout: 3 columns grid
+                cols = 3
+                photo_size = (page_width - 10 * mm) / cols
+                max_photo_h = photo_size
 
-                if photo_entries:
-                    # Layout: 3 columns grid
-                    cols = 3
-                    photo_size = (page_width - 10 * mm) / cols
-                    max_photo_h = photo_size  # square cells
+                grid_rows = []
+                current_row = []
 
-                    grid_rows = []
-                    current_row = []
+                for ann_num, img_path in photo_entries:
+                    photo_cell = TechnicalPDFExporter._create_photo_cell(
+                        img_path, ann_num, photo_size, max_photo_h,
+                        temp_dir, cell_bold_style
+                    )
+                    current_row.append(photo_cell)
 
-                    for ann_num, img_path in photo_entries:
-                        # Create photo cell with number badge overlay
-                        photo_cell = TechnicalPDFExporter._create_photo_cell(
-                            img_path, ann_num, photo_size, max_photo_h,
-                            temp_dir, cell_bold_style
-                        )
-                        current_row.append(photo_cell)
-
-                        if len(current_row) == cols:
-                            grid_rows.append(current_row)
-                            current_row = []
-
-                    # Pad last row
-                    if current_row:
-                        while len(current_row) < cols:
-                            current_row.append("")
+                    if len(current_row) == cols:
                         grid_rows.append(current_row)
+                        current_row = []
 
-                    if grid_rows:
-                        photo_table = Table(
-                            grid_rows,
-                            colWidths=[photo_size + 3 * mm] * cols,
-                            rowHeights=[photo_size + 8 * mm] * len(grid_rows),
-                        )
-                        photo_table.setStyle(TableStyle([
-                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                            ("TOPPADDING", (0, 0), (-1, -1), 4),
-                        ]))
-                        story.append(photo_table)
+                if current_row:
+                    while len(current_row) < cols:
+                        current_row.append("")
+                    grid_rows.append(current_row)
 
+                if grid_rows:
+                    photo_table = Table(
+                        grid_rows,
+                        colWidths=[photo_size + 3 * mm] * cols,
+                        rowHeights=[photo_size + 8 * mm] * len(grid_rows),
+                    )
+                    photo_table.setStyle(TableStyle([
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ]))
+                    story.append(photo_table)
             doc.build(story)
             logger.info("Technical Overview PDF exported: %s", output_path)
             return True, output_path
