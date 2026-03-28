@@ -46,7 +46,7 @@ class PartCard(QFrame):
         self.eye_btn.setToolTip("Toggle visibility")
         self.eye_btn.setStyleSheet(f"""
             QPushButton {{ background: transparent; border: none; font-size: 12px; padding: 2px; min-width: 24px; min-height: 24px; border-radius: 4px; }}
-            QPushButton:hover {{ background: #3a3e48; }}
+            QPushButton:hover {{ background: {default_theme.row_bg_hover}; }}
         """)
         self.eye_btn.clicked.connect(self._toggle_visibility)
         layout.addWidget(self.eye_btn)
@@ -57,7 +57,7 @@ class PartCard(QFrame):
         info_layout.setSpacing(0)
 
         self.name_label = QLabel(name)
-        self.name_label.setStyleSheet(f"color: {default_theme.text_light}; font-size: 13px; font-weight: 500; border: none; background: transparent;")
+        self.name_label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 13px; font-weight: 500; border: none; background: transparent;")
         info_layout.addWidget(self.name_label)
 
         meta_parts = []
@@ -81,7 +81,7 @@ class PartCard(QFrame):
     def _update_style(self):
         if self._is_selected:
             self.setStyleSheet(f"""
-                QFrame {{ background-color: #3a3e48; border: 2px solid {default_theme.button_primary}; border-radius: 6px; }}
+                QFrame {{ background-color: {default_theme.row_bg_hover}; border: 2px solid {default_theme.button_primary}; border-radius: 6px; }}
             """)
         elif not self._is_visible:
             self.setStyleSheet(f"""
@@ -90,8 +90,8 @@ class PartCard(QFrame):
         else:
             border_color = f"{default_theme.button_primary}40" if self.is_group else default_theme.border_standard
             self.setStyleSheet(f"""
-                QFrame {{ background-color: #2e323a; border: 1px solid {border_color}; border-radius: 6px; }}
-                QFrame:hover {{ background-color: #3a3e48; }}
+                QFrame {{ background-color: {default_theme.row_bg_standard}; border: 1px solid {border_color}; border-radius: 6px; }}
+                QFrame:hover {{ background-color: {default_theme.row_bg_hover}; }}
             """)
 
     def set_selected(self, selected: bool):
@@ -149,7 +149,7 @@ class PartsPanel(QWidget):
         icon_lbl.setAlignment(Qt.AlignCenter)
         header.addWidget(icon_lbl)
         title = QLabel("Parts")
-        title.setStyleSheet(f"color: {default_theme.text_light}; font-size: 14px; font-weight: bold; border: none; background: transparent;")
+        title.setStyleSheet(f"color: {default_theme.text_title}; font-size: 14px; font-weight: bold; border: none; background: transparent;")
         header.addWidget(title)
         header.addStretch()
 
@@ -228,13 +228,13 @@ class PartsPanel(QWidget):
         btn.setFixedHeight(28)
         btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {default_theme.button_default_bg};
-                color: {default_theme.text_light};
-                border: 1px solid {default_theme.button_default_border};
+                background-color: {default_theme.row_bg_standard};
+                color: {default_theme.text_primary};
+                border: 1px solid {default_theme.border_standard};
                 border-radius: 6px; font-size: 10px;
             }}
-            QPushButton:hover {{ background-color: #3a3e48; }}
-            QPushButton:disabled {{ color: {default_theme.text_light_secondary}; background-color: {default_theme.background}; }}
+            QPushButton:hover {{ background-color: {default_theme.row_bg_hover}; }}
+            QPushButton:disabled {{ color: {default_theme.text_subtext}; background-color: {default_theme.background}; }}
         """)
         return btn
 

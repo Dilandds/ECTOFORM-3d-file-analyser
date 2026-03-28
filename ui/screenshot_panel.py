@@ -30,12 +30,12 @@ class ScreenshotCard(QFrame):
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(f"""
             QFrame#screenshotCard {{
-                background-color: #2e323a;
+                background-color: {default_theme.row_bg_standard};
                 border-radius: 8px;
-                border: 1px solid #3a3e48;
+                border: 1px solid {default_theme.border_standard};
             }}
             QFrame#screenshotCard:hover {{
-                border: 1px solid #4a4e58;
+                border: 1px solid {default_theme.border_medium};
             }}
         """)
 
@@ -47,12 +47,12 @@ class ScreenshotCard(QFrame):
         header = QHBoxLayout()
         header.setSpacing(6)
         cam_label = QLabel("📷 ")
-        cam_label.setStyleSheet(f"color: {default_theme.text_light}; font-size: 12px; background: transparent;")
+        cam_label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 12px; background: transparent;")
         header.addWidget(cam_label)
         self.name_edit = QLineEdit(f"Screenshot {index + 1}")
         self.name_edit.setStyleSheet(f"""
             QLineEdit {{
-                color: {default_theme.text_light};
+                color: {default_theme.text_primary};
                 font-weight: bold;
                 font-size: 12px;
                 background: transparent;
@@ -60,9 +60,9 @@ class ScreenshotCard(QFrame):
                 padding: 2px 4px;
             }}
             QLineEdit:focus {{
-                border: 1px solid #4a4e58;
+                border: 1px solid {default_theme.border_medium};
                 border-radius: 4px;
-                background: #2a2e34;
+                background: white;
             }}
         """)
         self.name_edit.setPlaceholderText("Name")
@@ -72,7 +72,7 @@ class ScreenshotCard(QFrame):
         header.addWidget(self.name_edit)
         header.addStretch()
         ts_label = QLabel(timestamp)
-        ts_label.setStyleSheet(f"color: {default_theme.text_light_secondary}; font-size: 10px; background: transparent;")
+        ts_label.setStyleSheet(f"color: {default_theme.text_subtext}; font-size: 10px; background: transparent;")
         header.addWidget(ts_label)
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(26, 26)
@@ -81,7 +81,7 @@ class ScreenshotCard(QFrame):
         close_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: {default_theme.text_light_secondary};
+                color: {default_theme.text_secondary};
                 border: none;
                 border-radius: 4px;
                 font-size: 14px;
@@ -89,8 +89,8 @@ class ScreenshotCard(QFrame):
                 padding: 0; min-width: 26px; min-height: 26px;
             }}
             QPushButton:hover {{
-                background-color: #3a3e48;
-                color: {default_theme.text_light};
+                background-color: {default_theme.row_bg_hover};
+                color: {default_theme.text_primary};
             }}
         """)
         close_btn.clicked.connect(lambda: self.delete_requested.emit(self.index))
@@ -181,7 +181,7 @@ class ScreenshotCard(QFrame):
         """Show a full-size preview dialog of the screenshot."""
         dialog = QDialog(self.window())
         dialog.setWindowTitle(self.name_edit.text().strip() or f"Screenshot {self.index + 1}")
-        dialog.setStyleSheet(f"background-color: {default_theme.background};")
+        dialog.setStyleSheet(f"background-color: {default_theme.card_background};")
 
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -236,11 +236,11 @@ class ScreenshotCard(QFrame):
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {default_theme.button_default_bg}; color: {default_theme.text_light_secondary};
+                background-color: {default_theme.button_default_bg}; color: {default_theme.text_secondary};
                 border: 1px solid {default_theme.button_default_border}; border-radius: 6px;
                 padding: 8px 20px; font-size: 12px;
             }}
-            QPushButton:hover {{ background-color: #3a3e48; }}
+            QPushButton:hover {{ background-color: {default_theme.row_bg_hover}; }}
         """)
         close_btn.clicked.connect(dialog.accept)
         btn_row.addWidget(close_btn)
@@ -266,7 +266,7 @@ class ScreenshotPanel(QWidget):
         self.cards = []        # list of ScreenshotCard widgets
         self.setMinimumWidth(280)
         self.setMaximumWidth(350)  # Match annotation panel width
-        self.setStyleSheet(f"background-color: {default_theme.background};")
+        self.setStyleSheet(f"background-color: {default_theme.card_background};")
         self._init_ui()
 
     def _init_ui(self):
@@ -277,7 +277,7 @@ class ScreenshotPanel(QWidget):
         # Header
         header = QHBoxLayout()
         title = QLabel("📷  Screenshot mode")
-        title.setStyleSheet(f"color: {default_theme.text_light}; font-weight: bold; font-size: 14px; background: transparent;")
+        title.setStyleSheet(f"color: {default_theme.text_title}; font-weight: bold; font-size: 14px; background: transparent;")
         header.addWidget(title)
         header.addStretch()
 
@@ -288,7 +288,7 @@ class ScreenshotPanel(QWidget):
         exit_btn.setStyleSheet(f"""
             QPushButton#exitScreenshotBtn {{
                 background-color: {default_theme.button_default_bg};
-                color: {default_theme.text_light_secondary};
+                color: {default_theme.text_secondary};
                 border: none;
                 border-radius: 14px;
                 font-size: 16px;
@@ -296,7 +296,7 @@ class ScreenshotPanel(QWidget):
                 padding: 0; min-width: 28px; min-height: 28px;
             }}
             QPushButton#exitScreenshotBtn:hover {{
-                background-color: #3a3e48;
+                background-color: {default_theme.row_bg_hover};
             }}
         """)
         exit_btn.clicked.connect(self.exit_screenshot_mode.emit)
@@ -308,7 +308,7 @@ class ScreenshotPanel(QWidget):
             "Draw a rectangle to capture. Use the zoom buttons to zoom."
         )
         self.instruction.setWordWrap(True)
-        self.instruction.setStyleSheet(f"color: {default_theme.text_light_secondary}; font-size: 11px; background: transparent;")
+        self.instruction.setStyleSheet(f"color: {default_theme.text_subtext}; font-size: 11px; background: transparent;")
         layout.addWidget(self.instruction)
 
         # Scroll area for cards
@@ -334,14 +334,14 @@ class ScreenshotPanel(QWidget):
         self.clear_btn.setStyleSheet(f"""
             QPushButton#clearScreenshotsBtn {{
                 background-color: {default_theme.button_default_bg};
-                color: {default_theme.text_light_secondary};
+                color: {default_theme.text_secondary};
                 border: 1px solid {default_theme.button_default_border};
                 border-radius: 6px;
                 padding: 6px 12px;
                 font-size: 11px;
             }}
             QPushButton#clearScreenshotsBtn:hover {{
-                background-color: #3a3e48;
+                background-color: {default_theme.row_bg_hover};
             }}
         """)
         self.clear_btn.clicked.connect(self._on_clear_all)

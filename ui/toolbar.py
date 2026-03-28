@@ -146,7 +146,7 @@ class ToolbarButton(QPushButton):
         
         # Text label
         self.text_label = QLabel(label_text)
-        self.text_label.setStyleSheet(f"color: {default_theme.text_light}; font-size: 10px; background: transparent;")
+        self.text_label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 10px; background: transparent;")
         label_font = make_font(size=10)
         self.text_label.setFont(label_font)
         self.text_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
@@ -298,7 +298,7 @@ class ToolbarButton(QPushButton):
         if enabled:
             self._apply_default_style()
             self.icon_label.setStyleSheet(f"color: {default_theme.icon_blue}; font-size: 14px; background: transparent;")
-            self.text_label.setStyleSheet(f"color: {default_theme.text_light}; font-size: 11px; background: transparent;")
+            self.text_label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 11px; background: transparent;")
         else:
             self._apply_disabled_style()
 
