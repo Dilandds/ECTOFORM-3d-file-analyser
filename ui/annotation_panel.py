@@ -475,7 +475,7 @@ class AnnotationPanel(QWidget):
             QPushButton {{
                 background-color: transparent;
                 border: none;
-                color: {default_theme.text_secondary};
+                color: {default_theme.text_light_secondary};
                 font-size: 16px;
                 font-weight: bold;
                 padding: 0; min-width: 28px; min-height: 28px;
