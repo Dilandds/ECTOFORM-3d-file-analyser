@@ -72,7 +72,7 @@ class ScreenshotCard(QFrame):
         header.addWidget(self.name_edit)
         header.addStretch()
         ts_label = QLabel(timestamp)
-        ts_label.setStyleSheet(f"color: {default_theme.text_subtext}; font-size: 10px; background: transparent;")
+        ts_label.setStyleSheet(f"color: {default_theme.text_light_secondary}; font-size: 10px; background: transparent;")
         header.addWidget(ts_label)
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(26, 26)
