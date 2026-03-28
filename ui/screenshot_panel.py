@@ -30,12 +30,12 @@ class ScreenshotCard(QFrame):
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(f"""
             QFrame#screenshotCard {{
-                background-color: {default_theme.row_bg_standard};
+                background-color: #2e323a;
                 border-radius: 8px;
-                border: 1px solid {default_theme.border_standard};
+                border: 1px solid #3a3e48;
             }}
             QFrame#screenshotCard:hover {{
-                border: 1px solid {default_theme.border_medium};
+                border: 1px solid #4a4e58;
             }}
         """)
 
