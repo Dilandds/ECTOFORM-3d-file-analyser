@@ -255,13 +255,13 @@ class TechnicalSidebar(QWidget):
         self.reset_btn.setCursor(Qt.PointingHandCursor)
         self.reset_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: #EF4444;
+                background-color: #B91C1C;
                 border: none; border-radius: 6px;
                 padding: 6px 12px; font-size: 11px; font-weight: bold;
                 color: white;
             }}
             QPushButton:hover {{
-                background-color: #DC2626;
+                background-color: #991B1B;
             }}
         """)
         self.reset_btn.clicked.connect(lambda: self.reset_requested.emit())
