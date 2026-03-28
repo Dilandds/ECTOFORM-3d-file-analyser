@@ -64,8 +64,8 @@ class Theme:
     combobox_arrow = '#8a8e98'
     
     # Footer colors
-    footer_warning_bg = '#2A2818'
-    footer_warning_border = '#3A3820'
+    footer_warning_bg = '#2e2a20'
+    footer_warning_border = '#3a3628'
     
     # Input colors
     input_bg = '#132638'
