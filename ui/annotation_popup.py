@@ -68,7 +68,7 @@ class ImageThumbnail(QFrame):
         remove_btn.setCursor(Qt.PointingHandCursor)
         remove_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: #3A2020;
+                background-color: #2A1518;
                 border: none;
                 border-radius: 13px;
                 color: #F87171;
@@ -77,7 +77,7 @@ class ImageThumbnail(QFrame):
                 padding: 0; min-width: 26px; min-height: 26px;
             }}
             QPushButton:hover {{
-                background-color: #4A2828;
+                background-color: #351E22;
             }}
         """)
         remove_btn.clicked.connect(lambda: self.remove_requested.emit(self.image_path))
