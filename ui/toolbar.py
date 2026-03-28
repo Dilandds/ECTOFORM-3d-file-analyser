@@ -432,9 +432,12 @@ class ViewControlsToolbar(QWidget):
         self.reset_btn.setEnabled(False)
         content_layout.addWidget(self.reset_btn)
         
-        # View dropdown (Front, Rear, Left, Right, Top, Bottom)
+        # 2D Views dropdown (six orthographic presets)
         self._current_view = "front"
-        self.view_btn = ToolbarButton("⬚", "Front ▼", "Orthographic view presets")
+        self.view_btn = ToolbarButton(
+            "⬚", "2D Views ▼",
+            "2D orthographic views: Front, Left, Right, Rear, Top, Bottom",
+        )
         self.view_btn.clicked.connect(self._show_view_menu)
         self.view_btn.setEnabled(False)
         content_layout.addWidget(self.view_btn)
@@ -646,7 +649,7 @@ class ViewControlsToolbar(QWidget):
         ))
 
     def _show_view_menu(self):
-        """Show dropdown menu for view preset selection."""
+        """Show 2D Views menu: Front, Left, Right, Rear, Top, Bottom."""
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
@@ -667,15 +670,15 @@ class ViewControlsToolbar(QWidget):
                 font-weight: bold;
             }}
         """)
-        views = [
+        views_2d = [
             ("front", "⬚", "Front"),
-            ("rear", "⬛", "Rear"),
             ("left", "⊏", "Left"),
             ("right", "⊐", "Right"),
+            ("rear", "⬛", "Rear"),
             ("top", "⊤", "Top"),
             ("bottom", "⊥", "Bottom"),
         ]
-        for view_id, icon, label in views:
+        for view_id, icon, label in views_2d:
             action = menu.addAction(f"{icon}  {label}")
             action.setCheckable(True)
             action.setChecked(self._current_view == view_id)
@@ -689,10 +692,7 @@ class ViewControlsToolbar(QWidget):
             self.parts_btn.set_active(False)
             self.toggle_parts.emit()
         self._current_view = view_id
-        icons = {"front": "⬚", "rear": "⬛", "left": "⊏", "right": "⊐", "top": "⊤", "bottom": "⊥"}
-        labels = {"front": "Front", "rear": "Rear", "left": "Left", "right": "Right", "top": "Top", "bottom": "Bottom"}
-        self.view_btn.set_icon(icons[view_id])
-        self.view_btn.set_label(f"{labels[view_id]} ▼")
+        self._sync_2d_views_button()
         if view_id == "front":
             self.view_front.emit()
         elif view_id == "rear":
@@ -1019,12 +1019,15 @@ class ViewControlsToolbar(QWidget):
         self.fullscreen_btn.set_active(self.is_fullscreen)
         self.toggle_fullscreen.emit()
 
-    def _restore_view_btn(self):
-        """Restore view button to show current view preset."""
+    def _sync_2d_views_button(self):
+        """Keep label '2D Views ▼'; icon reflects current orthographic view."""
         icons = {"front": "⬚", "rear": "⬛", "left": "⊏", "right": "⊐", "top": "⊤", "bottom": "⊥"}
-        labels = {"front": "Front", "rear": "Rear", "left": "Left", "right": "Right", "top": "Top", "bottom": "Bottom"}
-        self.view_btn.set_icon(icons[self._current_view])
-        self.view_btn.set_label(f"{labels[self._current_view]} ▼")
+        self.view_btn.set_icon(icons.get(self._current_view, "⬚"))
+        self.view_btn.set_label("2D Views ▼")
+
+    def _restore_view_btn(self):
+        """Restore 2D Views button icon after exiting Parts mode."""
+        self._sync_2d_views_button()
 
     def reset_parts_state(self):
         """Reset parts button state (called when exiting parts mode externally)."""

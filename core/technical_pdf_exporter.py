@@ -2,10 +2,11 @@
 Technical Overview PDF Exporter.
 
 Generates a 2- or 3-page portrait PDF report:
-  Page 1 – The document image with numbered arrow annotations rendered on top.
-  Page 2 – "Fiche technique" style: metadata header fields + annotations table (N° | Annotations).
-  Page 3 – (Optional) Photo gallery from annotations, each photo marked with its annotation number.
+  Page 1 – Title "Technical overview" + annotated document image.
+  Page 2 – "Details" (left-sidebar fields when filled), separator, "Annotations" + table (N° | Annotations | Photos).
+  Continuation – Photo gallery with annotation numbers (optional).
 """
+import html
 import logging
 import os
 import tempfile
@@ -24,7 +25,7 @@ class TechnicalPDFExporter:
         annotations: list,        # List[ArrowAnnotation] dataclass instances
         metadata: dict,           # from TechnicalSidebar.get_metadata()
         output_path: str,
-        title: str = "Technical Overview",
+        title: str = "Technical overview",
     ) -> tuple:
         """
         Export the Technical Overview to a 2- or 3-page portrait PDF.
@@ -145,8 +146,7 @@ class TechnicalPDFExporter:
             story = []
 
             # ==================== PAGE 1: Annotated Drawing ====================
-            doc_title = metadata.get("title") or title
-            story.append(Paragraph(doc_title, title_style))
+            story.append(Paragraph("Technical overview", title_style))
             story.append(Spacer(1, 4))
 
             from PIL import Image as PILImage
@@ -164,10 +164,9 @@ class TechnicalPDFExporter:
 
             story.append(Image(annotated_img_path, width=img_w, height=img_h))
 
-            # ==================== PAGE 2: Fiche Technique ====================
+            # ==================== PAGE 2: Details + Annotations ====================
             story.append(PageBreak())
 
-            # --- Header fields from sidebar metadata ---
             prop_val = metadata.get("property") or ""
             title_val = metadata.get("title") or ""
             manufacturers = metadata.get("manufacturers", [])
@@ -176,73 +175,68 @@ class TechnicalPDFExporter:
             deadline = metadata.get("deadline") or ""
             comments = metadata.get("comments") or ""
 
-            # Build header fields dynamically from sidebar fields
-            field_pairs = []
-            if prop_val:
-                field_pairs.append(("Property:", prop_val))
-            if title_val:
-                field_pairs.append(("Title:", title_val))
-            if manuf_val:
-                field_pairs.append(("Manufacturer:", manuf_val))
-            if start_date:
-                field_pairs.append(("Date:", start_date))
-            if deadline:
-                field_pairs.append(("Deadline:", deadline))
+            # --- Details: 3×2 grid (row1: Property, Object title, Manufacturer | row2: dates + Comments) ---
+            def _detail_value(s: str) -> str:
+                return html.escape(s, quote=False).replace("\n", "<br/>")
 
-            if field_pairs:
-                header_row_labels = []
-                header_row_values = []
-                for label, value in field_pairs:
-                    header_row_labels.append(Paragraph(f"<u>{label}</u>", field_label_style))
-                    header_row_values.append(Paragraph(value, field_value_style))
+            def _detail_cell(label: str, raw: str):
+                v = (raw or "").strip()
+                if v:
+                    return Paragraph(f"<b>{label}</b><br/>{_detail_value(v)}", field_value_style)
+                return Paragraph(f"<b>{label}</b>", field_label_style)
 
-                num_cols = len(field_pairs)
-                col_w = page_width / num_cols
-                header_table = Table(
-                    [header_row_labels, header_row_values],
-                    colWidths=[col_w] * num_cols,
+            has_details = any(
+                x.strip()
+                for x in (prop_val, title_val, manuf_val, start_date, deadline, comments)
+            )
+
+            if has_details:
+                story.append(Paragraph("Details", section_style))
+                story.append(Spacer(1, 4))
+                col_w = page_width / 3.0
+                grid_row1 = [
+                    _detail_cell("Property", prop_val),
+                    _detail_cell("Object title", title_val),
+                    _detail_cell("Manufacturer(s)", manuf_val),
+                ]
+                grid_row2 = [
+                    _detail_cell("Start date", start_date),
+                    _detail_cell("Deadline", deadline),
+                    _detail_cell("Comments", comments),
+                ]
+                details_table = Table(
+                    [grid_row1, grid_row2],
+                    colWidths=[col_w, col_w, col_w],
                 )
-                header_table.setStyle(TableStyle([
+                details_table.setStyle(TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
                     ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                    ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
-                    ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
-                    ("TOPPADDING", (0, 1), (-1, 1), 2),
-                    ("BOTTOMPADDING", (0, 1), (-1, 1), 6),
-                    ("LINEBELOW", (0, 1), (-1, 1), 0.5, colors.HexColor("#94A3B8")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                    ("BOTTOMPADDING", (0, 1), (-1, 1), 4),
+                    ("TOPPADDING", (0, 1), (-1, 1), 8),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.25, colors.HexColor("#E2E8F0")),
+                    ("LINEBELOW", (0, 1), (-1, 1), 0.25, colors.HexColor("#E2E8F0")),
+                    ("LINEAFTER", (0, 0), (0, -1), 0.25, colors.HexColor("#E2E8F0")),
+                    ("LINEAFTER", (1, 0), (1, -1), 0.25, colors.HexColor("#E2E8F0")),
                 ]))
-                story.append(header_table)
+                story.append(details_table)
                 story.append(Spacer(1, 10))
 
-            # --- Title "Fiche technique" ---
-            fiche_title_style = ParagraphStyle(
-                "FicheTitle",
-                parent=styles["Heading1"],
-                fontName="Helvetica-Bold",
-                fontSize=26,
-                alignment=TA_CENTER,
-                spaceBefore=4,
-                spaceAfter=4,
-                textColor=colors.HexColor("#1E293B"),
-            )
-            story.append(Paragraph("Fiche technique", fiche_title_style))
+                sep_line = Table([[""]], colWidths=[page_width])
+                sep_line.setStyle(TableStyle([
+                    ("LINEBELOW", (0, 0), (-1, -1), 1, colors.HexColor("#94A3B8")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                story.append(sep_line)
+                story.append(Spacer(1, 10))
 
-            # Decorative line under title
-            line_table = Table([[""]], colWidths=[page_width])
-            line_table.setStyle(TableStyle([
-                ("LINEBELOW", (0, 0), (-1, -1), 1.5, colors.HexColor("#94A3B8")),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-            ]))
-            story.append(line_table)
-            story.append(Spacer(1, 10))
-
-            # --- Comments ---
-            if comments:
-                story.append(Paragraph("Comments", section_style))
-                story.append(Paragraph(
-                    comments.replace("\n", "<br/>"), body_style
-                ))
-                story.append(Spacer(1, 8))
+            # --- Annotations (table unchanged below) ---
+            story.append(Paragraph("Annotations", section_style))
+            story.append(Spacer(1, 6))
 
             # --- Annotations table (N° | Annotations | Photos) ---
             # Only show actual annotation rows, no empty filler
@@ -324,11 +318,23 @@ class TechnicalPDFExporter:
                     fontName="Helvetica-Bold",
                     fontSize=14,
                     spaceBefore=8,
-                    spaceAfter=6,
+                    spaceAfter=4,
                     textColor=colors.HexColor("#1E293B"),
                 )
-                story.append(Paragraph("Annotation Photos", photo_title_style))
-                story.append(Spacer(1, 6))
+                photo_caption_style = ParagraphStyle(
+                    "PhotoCaption",
+                    parent=body_style,
+                    fontSize=9,
+                    leading=12,
+                    spaceAfter=6,
+                    textColor=colors.HexColor("#64748B"),
+                )
+                story.append(Paragraph("Annotation photos", photo_title_style))
+                story.append(Paragraph(
+                    "<i>(Photos uploaded for the relevant annotation — please match with the annotation number from the table.)</i>",
+                    photo_caption_style,
+                ))
+                story.append(Spacer(1, 4))
 
                 # Layout: 3 columns grid
                 cols = 3
