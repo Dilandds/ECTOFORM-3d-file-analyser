@@ -82,10 +82,10 @@ class SidebarPanel(QWidget):
     def _add_card_shadow(self, card):
         """Add a subtle shadow effect to a card."""
         shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(16)
+        shadow.setBlurRadius(12)
         shadow.setXOffset(0)
-        shadow.setYOffset(3)
-        shadow.setColor(QColor(0, 0, 0, 50))
+        shadow.setYOffset(2)
+        shadow.setColor(QColor(0, 0, 0, 30))  # Semi-transparent black
         card.setGraphicsEffect(shadow)
     
     def init_ui(self):
@@ -127,8 +127,8 @@ class SidebarPanel(QWidget):
         upload_card.setObjectName("uploadCard")
         upload_card.setStyleSheet(f"""
             QFrame#uploadCard {{
-                background-color: #2a2e34;
-                border: 1px solid #3a3e48;
+                background-color: {default_theme.card_background};
+                border: 1px solid {default_theme.border_standard};
                 border-radius: 12px;
             }}
         """)
@@ -142,7 +142,6 @@ class SidebarPanel(QWidget):
         title_font = make_font(size=16, bold=True)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet(f"background: transparent; border: none; color: {default_theme.text_title};")
         upload_card_layout.addWidget(title_label)
         
         # Upload button
@@ -161,7 +160,7 @@ class SidebarPanel(QWidget):
         info_label.setObjectName("infoLabel")
         info_label.setAlignment(Qt.AlignCenter)
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("background: transparent; border: none; color: white;")
+        info_label.setStyleSheet(f"background: transparent; border: none; color: {default_theme.text_subtext};")
         upload_card_layout.addWidget(info_label)
         
         layout.addWidget(upload_card)
