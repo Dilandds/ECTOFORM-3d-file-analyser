@@ -47,7 +47,7 @@ class ScreenshotCard(QFrame):
         header = QHBoxLayout()
         header.setSpacing(6)
         cam_label = QLabel("📷 ")
-        cam_label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 12px; background: transparent;")
+        cam_label.setStyleSheet(f"color: {default_theme.text_light}; font-size: 12px; background: transparent;")
         header.addWidget(cam_label)
         self.name_edit = QLineEdit(f"Screenshot {index + 1}")
         self.name_edit.setStyleSheet(f"""
