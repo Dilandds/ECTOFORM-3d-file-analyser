@@ -46,7 +46,7 @@ class PartCard(QFrame):
         self.eye_btn.setToolTip("Toggle visibility")
         self.eye_btn.setStyleSheet(f"""
             QPushButton {{ background: transparent; border: none; font-size: 12px; padding: 2px; min-width: 24px; min-height: 24px; border-radius: 4px; }}
-            QPushButton:hover {{ background: {default_theme.row_bg_hover}; }}
+            QPushButton:hover {{ background: #3a3e48; }}
         """)
         self.eye_btn.clicked.connect(self._toggle_visibility)
         layout.addWidget(self.eye_btn)
