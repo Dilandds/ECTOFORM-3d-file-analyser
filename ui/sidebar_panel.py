@@ -82,10 +82,10 @@ class SidebarPanel(QWidget):
     def _add_card_shadow(self, card):
         """Add a subtle shadow effect to a card."""
         shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(12)
+        shadow.setBlurRadius(16)
         shadow.setXOffset(0)
-        shadow.setYOffset(2)
-        shadow.setColor(QColor(0, 0, 0, 30))  # Semi-transparent black
+        shadow.setYOffset(3)
+        shadow.setColor(QColor(0, 0, 0, 50))
         card.setGraphicsEffect(shadow)
     
     def init_ui(self):
@@ -127,8 +127,8 @@ class SidebarPanel(QWidget):
         upload_card.setObjectName("uploadCard")
         upload_card.setStyleSheet(f"""
             QFrame#uploadCard {{
-                background-color: {default_theme.card_background};
-                border: 1px solid {default_theme.border_standard};
+                background-color: #2a2e34;
+                border: 1px solid #3a3e48;
                 border-radius: 12px;
             }}
         """)

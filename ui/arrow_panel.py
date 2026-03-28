@@ -41,7 +41,7 @@ class ArrowCard(QFrame):
         layout.addWidget(self.color_dot)
 
         self.label = QLabel(f"Arrow {display_number}")
-        self.label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 12px; border: none; background: transparent;")
+        self.label.setStyleSheet(f"color: {default_theme.text_light}; font-size: 12px; border: none; background: transparent;")
         layout.addWidget(self.label, 1)
 
         del_btn = QPushButton("\u00D7")  # × - cleaner close icon
@@ -158,7 +158,7 @@ class ArrowPanel(QWidget):
         icon_lbl.setAlignment(Qt.AlignCenter)
         header.addWidget(icon_lbl)
         title = QLabel("Arrows")
-        title.setStyleSheet(f"color: {default_theme.text_title}; font-size: 14px; font-weight: bold; border: none; background: transparent;")
+        title.setStyleSheet(f"color: {default_theme.text_light}; font-size: 14px; font-weight: bold; border: none; background: transparent;")
         header.addWidget(title)
         header.addStretch()
         exit_btn = QPushButton("\u00D7")  # Multiplication sign (×) - renders cleaner than ✕
@@ -316,12 +316,12 @@ class ArrowPanel(QWidget):
         undo_btn.setFixedHeight(30)
         undo_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {default_theme.row_bg_standard};
-                color: {default_theme.text_primary};
-                border: 1px solid {default_theme.border_standard};
+                background-color: {default_theme.button_default_bg};
+                color: {default_theme.text_light};
+                border: 1px solid {default_theme.button_default_border};
                 border-radius: 6px; font-size: 11px;
             }}
-            QPushButton:hover {{ background-color: {default_theme.row_bg_hover}; }}
+            QPushButton:hover {{ background-color: #3a3e48; }}
         """)
         undo_btn.clicked.connect(self.undo_last_requested.emit)
         bottom.addWidget(undo_btn)
