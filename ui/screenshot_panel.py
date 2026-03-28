@@ -277,7 +277,7 @@ class ScreenshotPanel(QWidget):
         # Header
         header = QHBoxLayout()
         title = QLabel("📷  Screenshot mode")
-        title.setStyleSheet(f"color: {default_theme.text_title}; font-weight: bold; font-size: 14px; background: transparent;")
+        title.setStyleSheet(f"color: {default_theme.text_light}; font-weight: bold; font-size: 14px; background: transparent;")
         header.addWidget(title)
         header.addStretch()
 
