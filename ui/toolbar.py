@@ -834,7 +834,7 @@ class ViewControlsToolbar(QWidget):
         """Toggle draw mode on/off."""
         self.draw_mode_enabled = not self.draw_mode_enabled
         if self.draw_mode_enabled:
-            self.draw_btn.set_label("Drawing ▼")
+            self.draw_btn.set_label("3Drawing ▼")
             if self.parts_mode_enabled:
                 self.parts_mode_enabled = False
                 self.parts_btn.set_active(False)
@@ -847,9 +847,8 @@ class ViewControlsToolbar(QWidget):
                 self.annotation_mode_enabled = False
                 self.annotation_btn.set_active(False)
                 self.annotation_btn.set_icon("📝")
-            if self.screenshot_mode_enabled:
-                self.screenshot_mode_enabled = False
-                self.screenshot_btn.set_active(False)
+            # Screenshot: do not clear flags here — main window must run _exit_screenshot_mode()
+            # (overlay + panel). Clearing only the toolbar flag prevented that from running.
         else:
             self.draw_btn.set_label("Draw ▼")
             self._eraser_active = False
@@ -860,7 +859,7 @@ class ViewControlsToolbar(QWidget):
     def _on_eraser_toggled(self):
         """Toggle eraser mode."""
         self._eraser_active = not self._eraser_active
-        self.draw_btn.set_label("Eraser ▼" if self._eraser_active else "Drawing ▼")
+        self.draw_btn.set_label("Eraser ▼" if self._eraser_active else "3Drawing ▼")
         self.draw_eraser_toggled.emit(self._eraser_active)
 
     def reset_draw_state(self):

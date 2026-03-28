@@ -460,7 +460,7 @@ class AnnotationPanel(QWidget):
         anno_icon.setFixedSize(22, 22)
         anno_icon.setAlignment(Qt.AlignCenter)
         title_row.addWidget(anno_icon)
-        title_label = QLabel("Annotations")
+        title_label = QLabel("anotation mode")
         title_font = make_font(size=12, bold=True)
         title_label.setFont(title_font)
         title_label.setStyleSheet(f"color: {default_theme.text_title};")

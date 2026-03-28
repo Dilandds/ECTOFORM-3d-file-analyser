@@ -1775,7 +1775,7 @@ class STLViewerWindow(QMainWindow):
                         self._exit_ruler_mode()
                     if self.toolbar.annotation_mode_enabled:
                         self._exit_annotation_mode()
-                    if self.toolbar.screenshot_mode_enabled:
+                    if self.toolbar.screenshot_mode_enabled or getattr(vw, "screenshot_mode", False):
                         self._exit_screenshot_mode()
                     # Show color picker on first enable
                     self.toolbar.show_draw_color_picker()
