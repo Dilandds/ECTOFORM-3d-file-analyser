@@ -21,8 +21,8 @@ class DrawToolbar(QWidget):
         self.setFixedHeight(36)
         self.setStyleSheet(f"""
             QWidget {{
-                background-color: {default_theme.card_background};
-                border: 1px solid {default_theme.border_standard};
+                background-color: #2a2e34;
+                border: 1px solid #3a3e48;
                 border-radius: 8px;
             }}
         """)
