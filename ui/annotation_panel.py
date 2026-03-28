@@ -201,7 +201,7 @@ class AnnotationCard(QFrame):
         self.label_edit.setFont(title_font)
         self.label_edit.setStyleSheet(f"""
             QLineEdit {{
-                color: {default_theme.text_primary};
+                color: {default_theme.text_light};
                 background: transparent;
                 border: none;
                 border-bottom: 1px solid transparent;
