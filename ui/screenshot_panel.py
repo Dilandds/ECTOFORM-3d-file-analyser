@@ -341,7 +341,7 @@ class ScreenshotPanel(QWidget):
                 font-size: 11px;
             }}
             QPushButton#clearScreenshotsBtn:hover {{
-                background-color: {default_theme.row_bg_hover};
+                background-color: #3a3e48;
             }}
         """)
         self.clear_btn.clicked.connect(self._on_clear_all)
