@@ -316,12 +316,12 @@ class ArrowPanel(QWidget):
         undo_btn.setFixedHeight(30)
         undo_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {default_theme.row_bg_standard};
-                color: {default_theme.text_primary};
-                border: 1px solid {default_theme.border_standard};
+                background-color: {default_theme.button_default_bg};
+                color: {default_theme.text_light};
+                border: 1px solid {default_theme.button_default_border};
                 border-radius: 6px; font-size: 11px;
             }}
-            QPushButton:hover {{ background-color: {default_theme.row_bg_hover}; }}
+            QPushButton:hover {{ background-color: #3a3e48; }}
         """)
         undo_btn.clicked.connect(self.undo_last_requested.emit)
         bottom.addWidget(undo_btn)
