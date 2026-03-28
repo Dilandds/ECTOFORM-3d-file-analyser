@@ -41,7 +41,7 @@ class ArrowCard(QFrame):
         layout.addWidget(self.color_dot)
 
         self.label = QLabel(f"Arrow {display_number}")
-        self.label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 12px; border: none; background: transparent;")
+        self.label.setStyleSheet(f"color: {default_theme.text_light}; font-size: 12px; border: none; background: transparent;")
         layout.addWidget(self.label, 1)
 
         del_btn = QPushButton("\u00D7")  # × - cleaner close icon
