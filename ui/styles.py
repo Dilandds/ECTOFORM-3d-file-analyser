@@ -21,32 +21,35 @@ def _dropdown_arrow_url():
 class Theme:
     """Centralized theme with all color definitions."""
     
-    # Background colors – dark palette
+    # Background colors – dark palette (sidebar/main bg)
     background = '#22262c'
     card_background = '#FFFFFF'
     gradient_start = '#22262c'
     gradient_mid = '#3a3e48'
     gradient_end = '#717584'
     
-    # Text colors
-    text_primary = '#1A1A2E'
+    # Text colors – dark text on light cards
+    text_primary = '#1E293B'
     text_secondary = '#475569'
     text_title = '#0F172A'
     text_subtext = '#64748B'
     text_white = 'white'
+    # Light text for dark backgrounds (toolbar, mode bar, etc.)
+    text_light = '#E0ECF4'
+    text_light_secondary = '#8FAABE'
     
     # Button colors
     button_primary = '#2596BE'
     button_primary_hover = '#1E7FA3'
     button_primary_pressed = '#186A8A'
-    button_default_bg = '#F1F5F9'
-    button_default_border = '#E2E8F0'
+    button_default_bg = '#2e323a'
+    button_default_border = '#3a3e48'
     
-    # Row colors
-    row_bg_standard = '#F5F6F8'
-    row_bg_hover = '#EBEDF0'
-    row_bg_highlight = '#EDF5F8'
-    row_bg_highlight_hover = '#E0EDF2'
+    # Row colors – light rows inside white cards
+    row_bg_standard = '#F1F5F9'
+    row_bg_hover = '#E2E8F0'
+    row_bg_highlight = '#EFF6FF'
+    row_bg_highlight_hover = '#DBEAFE'
     
     # Border and separator colors
     border_standard = '#E2E8F0'
@@ -57,17 +60,17 @@ class Theme:
     
     # Special colors
     icon_blue = '#2596BE'
-    icon_info_gray = '#94A3B8'
+    icon_info_gray = '#64748B'
     icon_warning = '#E8A040'
     scrollbar_handle = '#CBD5E1'
     scrollbar_handle_hover = '#94A3B8'
-    combobox_arrow = '#94A3B8'
+    combobox_arrow = '#64748B'
     
     # Footer colors
     footer_warning_bg = '#FEF3C7'
-    footer_warning_border = '#FDE68A'
+    footer_warning_border = '#F59E0B'
     
-    # Input colors
+    # Input colors – light inputs inside white cards
     input_bg = '#F8FAFC'
     input_border = '#E2E8F0'
     input_border_hover = '#CBD5E1'
@@ -129,7 +132,7 @@ def get_global_stylesheet(theme=None):
         /* General QPushButton style - default, won't override specific buttons */
         QPushButton {{
             background-color: {theme.button_default_bg};
-            color: {theme.text_title};
+            color: {theme.text_light};
             border: 1px solid {theme.button_default_border};
             border-radius: 6px;
             padding: 8px 16px;
@@ -212,7 +215,7 @@ def get_global_stylesheet(theme=None):
             border-radius: 8px;
         }}
         QFrame#surfaceFooter {{
-            background-color: {theme.background};
+            background-color: {theme.row_bg_standard};
             border: 1px solid {theme.border_standard};
             border-radius: 6px;
         }}

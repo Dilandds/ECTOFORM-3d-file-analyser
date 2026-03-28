@@ -201,7 +201,7 @@ class AnnotationCard(QFrame):
         self.label_edit.setFont(title_font)
         self.label_edit.setStyleSheet(f"""
             QLineEdit {{
-                color: {default_theme.text_primary};
+                color: {default_theme.text_light};
                 background: transparent;
                 border: none;
                 border-bottom: 1px solid transparent;
@@ -463,7 +463,7 @@ class AnnotationPanel(QWidget):
         title_label = QLabel("anotation mode")
         title_font = make_font(size=12, bold=True)
         title_label.setFont(title_font)
-        title_label.setStyleSheet(f"color: {default_theme.text_title};")
+        title_label.setStyleSheet(f"color: {default_theme.text_light};")
         title_row.addWidget(title_label)
         title_row.addStretch()
         
@@ -475,14 +475,14 @@ class AnnotationPanel(QWidget):
             QPushButton {{
                 background-color: transparent;
                 border: none;
-                color: {default_theme.text_secondary};
+                color: {default_theme.text_light_secondary};
                 font-size: 16px;
                 font-weight: bold;
                 padding: 0; min-width: 28px; min-height: 28px;
             }}
             QPushButton:hover {{
-                color: {default_theme.text_primary};
-                background-color: {default_theme.row_bg_hover};
+                color: {default_theme.text_light};
+                background-color: #3a3e48;
                 border-radius: 14px;
             }}
         """)
@@ -557,19 +557,19 @@ class AnnotationPanel(QWidget):
         self.clear_btn.setEnabled(False)
         self.clear_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {default_theme.row_bg_standard};
+                background-color: {default_theme.button_default_bg};
                 border: 1px solid {default_theme.border_light};
                 border-radius: 6px;
                 padding: 6px 12px;
                 font-size: 11px;
-                color: {default_theme.text_primary};
+                color: {default_theme.text_light};
             }}
             QPushButton:hover {{
-                background-color: {default_theme.row_bg_hover};
+                background-color: #3a3e48;
             }}
             QPushButton:disabled {{
                 background-color: {default_theme.button_default_bg};
-                color: {default_theme.text_secondary};
+                color: {default_theme.text_light_secondary};
             }}
         """)
         self.clear_btn.clicked.connect(self._on_clear_all)

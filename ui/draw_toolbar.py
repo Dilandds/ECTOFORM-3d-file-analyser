@@ -21,8 +21,8 @@ class DrawToolbar(QWidget):
         self.setFixedHeight(36)
         self.setStyleSheet(f"""
             QWidget {{
-                background-color: {default_theme.card_background};
-                border: 1px solid {default_theme.border_standard};
+                background-color: #2a2e34;
+                border: 1px solid #3a3e48;
                 border-radius: 8px;
             }}
         """)
@@ -36,16 +36,16 @@ class DrawToolbar(QWidget):
 
         btn_style = f"""
             QPushButton {{
-                background-color: {default_theme.row_bg_standard};
-                color: {default_theme.text_primary};
-                border: 1px solid {default_theme.border_standard};
+                background-color: #2e323a;
+                color: {default_theme.text_light};
+                border: 1px solid #3a3e48;
                 border-radius: 6px;
                 font-size: 12px;
                 padding: 2px 8px;
                 min-width: 28px;
             }}
             QPushButton:hover {{
-                background-color: {default_theme.row_bg_hover};
+                background-color: #3a3e48;
             }}
         """
         active_style = f"""
