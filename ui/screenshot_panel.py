@@ -236,11 +236,11 @@ class ScreenshotCard(QFrame):
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {default_theme.button_default_bg}; color: {default_theme.text_secondary};
+                background-color: {default_theme.button_default_bg}; color: {default_theme.text_light_secondary};
                 border: 1px solid {default_theme.button_default_border}; border-radius: 6px;
                 padding: 8px 20px; font-size: 12px;
             }}
-            QPushButton:hover {{ background-color: {default_theme.row_bg_hover}; }}
+            QPushButton:hover {{ background-color: #3a3e48; }}
         """)
         close_btn.clicked.connect(dialog.accept)
         btn_row.addWidget(close_btn)
