@@ -298,7 +298,7 @@ class ToolbarButton(QPushButton):
         if enabled:
             self._apply_default_style()
             self.icon_label.setStyleSheet(f"color: {default_theme.icon_blue}; font-size: 14px; background: transparent;")
-            self.text_label.setStyleSheet(f"color: {default_theme.text_primary}; font-size: 11px; background: transparent;")
+            self.text_label.setStyleSheet(f"color: {default_theme.text_light}; font-size: 11px; background: transparent;")
         else:
             self._apply_disabled_style()
 
