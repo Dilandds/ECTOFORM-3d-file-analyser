@@ -57,11 +57,11 @@ class Theme:
     
     # Special colors
     icon_blue = '#2596BE'
-    icon_info_gray = '#7A98AE'
+    icon_info_gray = '#8a8e98'
     icon_warning = '#E8A040'
-    scrollbar_handle = '#244A62'
-    scrollbar_handle_hover = '#2E5A72'
-    combobox_arrow = '#7A98AE'
+    scrollbar_handle = '#3a3e48'
+    scrollbar_handle_hover = '#4a4e58'
+    combobox_arrow = '#8a8e98'
     
     # Footer colors
     footer_warning_bg = '#2A2818'
