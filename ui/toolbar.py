@@ -846,7 +846,7 @@ class ViewControlsToolbar(QWidget):
         """Toggle draw mode on/off."""
         self.draw_mode_enabled = not self.draw_mode_enabled
         if self.draw_mode_enabled:
-            self.draw_btn.set_label("3Drawing ▼")
+            self.draw_btn.set_label("Drawing ▼")
             if self.parts_mode_enabled:
                 self.parts_mode_enabled = False
                 self.parts_btn.set_active(False)
