@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QFrame, QSpacerItem, QApplication, QMenu, QAction,
     QScrollArea, QWidgetAction,
 )
-from PyQt5.QtCore import Qt, QEvent, pyqtSignal, QPropertyAnimation, QEasingCurve, QSettings
+from PyQt5.QtCore import Qt, QRect, QEvent, pyqtSignal, QPropertyAnimation, QEasingCurve, QSettings
 from PyQt5.QtGui import QFont, QFontMetrics, QPixmap, QPainter, QColor, QImage
 from ui.styles import default_theme, make_font
 
