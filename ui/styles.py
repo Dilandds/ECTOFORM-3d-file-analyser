@@ -516,6 +516,7 @@ def get_global_stylesheet(theme=None):
             border: none;
             border-bottom: 1px solid {theme.border_standard};
             min-height: 30px;
+            padding-left: 4px;
         }}
         QTabBar#ectoTabBar::tab {{
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -532,7 +533,7 @@ def get_global_stylesheet(theme=None):
             padding-top: 5px;
             padding-right: 14px;
             padding-bottom: 6px;
-            padding-left: 20px;
+            padding-left: 28px;
             margin-right: 2px;
             font-size: 12px;
             font-family: {FONTS['family']};
@@ -557,7 +558,7 @@ def get_global_stylesheet(theme=None):
             padding-top: 6px;
             padding-right: 14px;
             padding-bottom: 6px;
-            padding-left: 22px;
+            padding-left: 30px;
             min-height: 24px;
         }}
         QTabBar#ectoTabBar::tab:hover:!selected {{
@@ -573,7 +574,7 @@ def get_global_stylesheet(theme=None):
             padding-top: 5px;
             padding-right: 14px;
             padding-bottom: 6px;
-            padding-left: 20px;
+            padding-left: 28px;
         }}
         QTabBar#ectoTabBar::tab:last {{
             min-width: 32px;

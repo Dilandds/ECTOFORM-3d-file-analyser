@@ -54,6 +54,16 @@ from ui.technical_sidebar import TechnicalSidebar
 
 logger = logging.getLogger(__name__)
 
+# QTabBar + QSS can still clip the first glyph on macOS; leading en spaces reserve real width.
+_TAB_CAPTION_LEAD = "\u2002\u2002\u2002"
+
+
+def _ecto_tab_caption(visible_name: str) -> str:
+    """Tab strip label with left inset so the first character is not clipped."""
+    if not visible_name or visible_name == "+":
+        return visible_name
+    return _TAB_CAPTION_LEAD + visible_name
+
 
 def safe_flush(stream):
     """Safely flush a stream, handling None (common in PyInstaller Windows builds)."""
@@ -259,7 +269,7 @@ class STLViewerWindow(QMainWindow):
         tab_bar_container = QWidget()
         tab_bar_layout = QHBoxLayout(tab_bar_container)
         # Left inset so first tab label (bold) is not flush against the splitter edge / clipped
-        tab_bar_layout.setContentsMargins(6, 0, 0, 0)
+        tab_bar_layout.setContentsMargins(14, 0, 0, 0)
         tab_bar_layout.setSpacing(0)
         tab_bar_layout.addWidget(self.tab_bar, 0, Qt.AlignLeft)
         tab_bar_layout.addStretch(1)
@@ -615,7 +625,7 @@ class STLViewerWindow(QMainWindow):
             display_name = Path(file_path).name
             tab.file_path = file_path
             tab.filename = display_name
-        tab_bar_index = self.tab_bar.insertTab(self._plus_tab_index, display_name)
+        tab_bar_index = self.tab_bar.insertTab(self._plus_tab_index, _ecto_tab_caption(display_name))
         self._plus_tab_index += 1  # "+" tab shifted right
         
         # Switch to the new tab
@@ -1035,7 +1045,7 @@ class STLViewerWindow(QMainWindow):
             tab.mesh = None
             tab.annotations_exported = False
             # Update tab bar text
-            self.tab_bar.setTabText(self.current_tab_index, "Untitled")
+            self.tab_bar.setTabText(self.current_tab_index, _ecto_tab_caption("Untitled"))
         
         logger.info("_clear_current_model: Model and all data cleared")
     
@@ -1123,7 +1133,7 @@ class STLViewerWindow(QMainWindow):
                 self.sidebar_panel.set_conversion_blocked(True)
             
             # Update tab bar text
-            self.tab_bar.setTabText(self.current_tab_index, filename)
+            self.tab_bar.setTabText(self.current_tab_index, _ecto_tab_caption(filename))
             
             self.setWindowTitle(f"ECTOFORM - {filename}")
             self.toolbar.set_loaded_filename(filename)
@@ -2309,7 +2319,7 @@ class STLViewerWindow(QMainWindow):
             if tab:
                 tab.file_path = ecto_path
                 tab.filename = display_name
-                self.tab_bar.setTabText(self.current_tab_index, display_name)
+                self.tab_bar.setTabText(self.current_tab_index, _ecto_tab_caption(display_name))
             
             self.setWindowTitle(f"ECTOFORM - {display_name}")
             self.toolbar.set_loaded_filename(display_name)
