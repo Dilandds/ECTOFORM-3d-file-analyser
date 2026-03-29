@@ -15,6 +15,11 @@ from ui.drop_zone_overlay import DropZoneOverlay
 
 logger = logging.getLogger(__name__)
 
+# Rubber-band screenshot: render the canvas snapshot at this multiple of logical size.
+# Higher = sharper saved PNGs. Edge / total-pixel caps avoid GPU OOM on huge windows.
+SCREENSHOT_CAPTURE_SCALE = 12
+_SCREENSHOT_MAX_EDGE_PX = 16384
+_SCREENSHOT_MAX_PIXELS = 96_000_000  # ~9.8k × 9.8k RGBA max; scales down uniformly if needed
 
 from ui.orientation_gizmo import OrientationGizmoWidget
 
@@ -2282,14 +2287,23 @@ class STLViewerWidget(QWidget):
         from PyQt5.QtGui import QImage, QPixmap
         import numpy as np
 
-        SCALE = 3  # render at 3× resolution for high-res output
-
         captured = False
         # Try pygfx renderer snapshot at high resolution
         if self._renderer and self._scene and self._camera:
             try:
                 cw, ch = self._canvas.get_logical_size() if hasattr(self._canvas, 'get_logical_size') else (self.viewer_container.width(), self.viewer_container.height())
-                target_w, target_h = int(cw * SCALE), int(ch * SCALE)
+                target_w = int(cw * SCREENSHOT_CAPTURE_SCALE)
+                target_h = int(ch * SCREENSHOT_CAPTURE_SCALE)
+                me = max(target_w, target_h)
+                if me > _SCREENSHOT_MAX_EDGE_PX:
+                    r = _SCREENSHOT_MAX_EDGE_PX / me
+                    target_w = max(1, int(target_w * r))
+                    target_h = max(1, int(target_h * r))
+                px = target_w * target_h
+                if px > _SCREENSHOT_MAX_PIXELS:
+                    r = (_SCREENSHOT_MAX_PIXELS / px) ** 0.5
+                    target_w = max(1, int(target_w * r))
+                    target_h = max(1, int(target_h * r))
 
                 img_array = self._renderer.snapshot(
                     self._scene, self._camera,
@@ -2308,9 +2322,9 @@ class STLViewerWidget(QWidget):
                     qimg = QImage(img_array.data, w_img, h_img, img_array.strides[0], fmt)
                     full_pixmap = QPixmap.fromImage(qimg.copy())
 
-                    # Scale the selection rect to high-res coordinates
-                    sx = target_w / cw
-                    sy = target_h / ch
+                    # Map rubber-band rect from widget coords to snapshot pixels (use actual render size)
+                    sx = w_img / cw
+                    sy = h_img / ch
                     hr_rect = QRect(
                         int(rect.x() * sx), int(rect.y() * sy),
                         int(rect.width() * sx), int(rect.height() * sy)
