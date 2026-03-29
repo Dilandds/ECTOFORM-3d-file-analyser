@@ -79,14 +79,14 @@ class SidebarPanel(QWidget):
         self.has_scaled_data = False
         self.init_ui()
     
-    def _add_card_shadow(self, card, blur_radius=26, y_offset=8, alpha=110):
-        """Add a drop shadow to a sidebar section card (black; matches upload card)."""
+    def _add_card_shadow(self, widget, blur_radius=26, y_offset=8, alpha=110):
+        """Add a black drop shadow to a sidebar card, button, or other widget."""
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(blur_radius)
         shadow.setXOffset(0)
         shadow.setYOffset(y_offset)
         shadow.setColor(QColor(0, 0, 0, alpha))
-        card.setGraphicsEffect(shadow)
+        widget.setGraphicsEffect(shadow)
 
     def _style_section_card(self, card: QFrame):
         """Gradient + border on this card, styled background + drop shadow.
@@ -162,6 +162,9 @@ class SidebarPanel(QWidget):
         self.upload_btn.setCursor(Qt.PointingHandCursor)
         self.upload_btn.setStyleSheet(get_button_style("uploadBtn"))
         self.upload_btn.setToolTip("Upload STL, STEP, 3DM, OBJ, or IGES file for 3D visualization")
+        self.upload_btn.setAttribute(Qt.WA_StyledBackground, True)
+        # Strong black drop shadow (visible below the pill; layout margin reserves space in stylesheet)
+        self._add_card_shadow(self.upload_btn, blur_radius=34, y_offset=9, alpha=210)
         upload_card_layout.addWidget(self.upload_btn)
         
         # Info label

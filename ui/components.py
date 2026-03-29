@@ -4,7 +4,7 @@ Reusable UI components for the ECTOFORM application.
 from PyQt5.QtWidgets import (
     QFrame, QLabel, QHBoxLayout, QVBoxLayout,
     QSpacerItem, QSizePolicy, QCheckBox, QWidget,
-    QDialog, QPushButton
+    QDialog, QPushButton, QGraphicsDropShadowEffect,
 )
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QFont, QPainter, QColor
@@ -165,6 +165,7 @@ class SurfaceAreaRow(QFrame):
         if row_type == "total_area":
             self.setObjectName("surfaceRowTotalArea")
             _st = default_theme.surface_total_area_bg
+            self.setAttribute(Qt.WA_StyledBackground, True)
             self.setStyleSheet(f"""
                 QFrame#surfaceRowTotalArea {{
                     background-color: {_st};
@@ -172,6 +173,12 @@ class SurfaceAreaRow(QFrame):
                     border: none;
                 }}
             """)
+            _shadow = QGraphicsDropShadowEffect()
+            _shadow.setBlurRadius(32)
+            _shadow.setXOffset(0)
+            _shadow.setYOffset(8)
+            _shadow.setColor(QColor(0, 0, 0, 200))
+            self.setGraphicsEffect(_shadow)
         elif row_type == "standard":
             self.setObjectName("surfaceRowStandard")
             self.setStyleSheet(f"""

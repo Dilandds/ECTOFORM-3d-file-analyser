@@ -182,6 +182,8 @@ def get_global_stylesheet(theme=None):
             padding: 12px 20px;
             font-size: 15px;
             font-weight: bold;
+            margin-top: 2px;
+            margin-bottom: 14px;
         }}
         QPushButton#uploadBtn:hover {{
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -610,6 +612,8 @@ def get_button_style(object_name="uploadBtn", theme=None):
             padding: 12px 20px;
             font-size: 15px;
             font-weight: bold;
+            margin-top: 2px;
+            margin-bottom: 14px;
         }}
         QPushButton#{object_name}:hover {{
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
