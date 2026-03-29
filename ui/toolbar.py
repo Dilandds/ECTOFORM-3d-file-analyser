@@ -94,7 +94,10 @@ class _PartsMenuRow(QWidget):
         self._enabled = enabled
         menu_font = make_font(size=11)
         fm = QFontMetrics(menu_font)
-        gap_two_spaces = fm.horizontalAdvance("  ")
+        try:
+            gap_two_spaces = fm.horizontalAdvance("  ")
+        except AttributeError:
+            gap_two_spaces = fm.width("  ")
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 6, 16, 6)
