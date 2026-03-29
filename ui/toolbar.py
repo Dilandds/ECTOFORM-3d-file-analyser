@@ -670,63 +670,69 @@ class ViewControlsToolbar(QWidget):
 
     def _show_render_mode_menu(self):
         """Show dropdown menu for render mode and parts selection."""
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{
-                background-color: {default_theme.card_background};
-                border: 1px solid {default_theme.border_standard};
-                border-radius: 6px;
-                padding: 4px 0;
-            }}
-            QMenu::item {{
-                padding: 6px 16px;
-                color: {default_theme.text_primary};
-                font-size: 11px;
-            }}
-            QMenu::item:selected {{
-                background-color: {default_theme.row_bg_hover};
-            }}
-            QMenu::item:checked {{
-                font-weight: bold;
-            }}
-            QMenu::separator {{
-                height: 1px;
-                background: {default_theme.border_standard};
-                margin: 4px 8px;
-            }}
-        """)
+        try:
+            logger.debug("_show_render_mode_menu: opening menu")
+            menu = QMenu(self)
+            menu.setStyleSheet(f"""
+                QMenu {{
+                    background-color: {default_theme.card_background};
+                    border: 1px solid {default_theme.border_standard};
+                    border-radius: 6px;
+                    padding: 4px 0;
+                }}
+                QMenu::item {{
+                    padding: 6px 16px;
+                    color: {default_theme.text_primary};
+                    font-size: 11px;
+                }}
+                QMenu::item:selected {{
+                    background-color: {default_theme.row_bg_hover};
+                }}
+                QMenu::item:checked {{
+                    font-weight: bold;
+                }}
+                QMenu::separator {{
+                    height: 1px;
+                    background: {default_theme.border_standard};
+                    margin: 4px 8px;
+                }}
+            """)
 
-        modes = [
-            ("shaded", "◆", "Shaded"),
-            ("solid", "◇", "Solid"),
-            ("wireframe", "◈", "Wireframe"),
-        ]
-        for mode_id, icon, label in modes:
-            action = menu.addAction(f"{icon}  {label}")
-            action.setCheckable(True)
-            action.setChecked(self.render_mode == mode_id)
-            action.triggered.connect(lambda checked, m=mode_id: self._set_render_mode(m))
+            modes = [
+                ("shaded", "◆", "Shaded"),
+                ("solid", "◇", "Solid"),
+                ("wireframe", "◈", "Wireframe"),
+            ]
+            for mode_id, icon, label in modes:
+                action = menu.addAction(f"{icon}  {label}")
+                action.setCheckable(True)
+                action.setChecked(self.render_mode == mode_id)
+                action.triggered.connect(lambda checked, m=mode_id: self._set_render_mode(m))
 
-        # Separator + Parts (QPixmap in QLabel — QAction+QIcon is tinted gray / oversized on macOS)
-        menu.addSeparator()
-        parts_icon_path = self._get_parts_icon_path()
-        if not (parts_icon_path and os.path.isfile(parts_icon_path)):
-            parts_icon_path = ""
-        row = _PartsMenuRow(parts_icon_path, self.parts_mode_enabled, self.stl_loaded, menu)
-        wa = QWidgetAction(menu)
-        wa.setDefaultWidget(row)
-        menu.addAction(wa)
+            # Separator + Parts (QPixmap in QLabel — QAction+QIcon is tinted gray / oversized on macOS)
+            menu.addSeparator()
+            parts_icon_path = self._get_parts_icon_path()
+            logger.debug("_show_render_mode_menu: parts_icon_path=%s", parts_icon_path)
+            if not (parts_icon_path and os.path.isfile(parts_icon_path)):
+                parts_icon_path = ""
+            row = _PartsMenuRow(parts_icon_path, self.parts_mode_enabled, self.stl_loaded, menu)
+            wa = QWidgetAction(menu)
+            wa.setDefaultWidget(row)
+            menu.addAction(wa)
 
-        def _parts_row_activate():
-            self._on_parts_selected()
-            menu.close()
+            def _parts_row_activate():
+                self._on_parts_selected()
+                menu.close()
 
-        row.clicked.connect(_parts_row_activate)
+            row.clicked.connect(_parts_row_activate)
 
-        # Show below the button
-        menu.exec_(self.render_mode_btn.mapToGlobal(
-            self.render_mode_btn.rect().bottomLeft()
-        ))
+            # Show below the button
+            menu.exec_(self.render_mode_btn.mapToGlobal(
+                self.render_mode_btn.rect().bottomLeft()
+            ))
+            logger.debug("_show_render_mode_menu: menu closed")
+        except Exception:
+            logger.error("_show_render_mode_menu CRASHED", exc_info=True)
 
     def _show_view_menu(self):
         """Show 2D Views menu: Front, Left, Right, Rear, Top, Bottom."""
