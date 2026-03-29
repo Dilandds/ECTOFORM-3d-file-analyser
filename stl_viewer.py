@@ -1138,13 +1138,6 @@ class STLViewerWindow(QMainWindow):
             tab.filename = filename
             tab.loaded_via_conversion = from_conversion
             
-            # Show conversion options for 3DM/STEP; block for other formats (STL, OBJ, etc.)
-            file_ext = file_path.lower()
-            is_convertible = (file_ext.endswith('.3dm') or file_ext.endswith('.step') or file_ext.endswith('.stp'))
-            if is_convertible:
-                self.sidebar_panel.set_converter_source_from_file(file_path)
-            else:
-                self.sidebar_panel.set_conversion_blocked(True)
             
             # Update tab bar text
             self.tab_bar.setTabText(self.current_tab_index, _ecto_tab_caption(filename))
