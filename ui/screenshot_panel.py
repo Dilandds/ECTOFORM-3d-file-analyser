@@ -316,6 +316,7 @@ class ScreenshotPanel(QWidget):
         self.grid_layout = QGridLayout(self.cards_container)
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
         self.grid_layout.setSpacing(6)
+        self.grid_layout.setAlignment(Qt.AlignTop)
 
         scroll.setWidget(self.cards_container)
         layout.addWidget(scroll, 1)
