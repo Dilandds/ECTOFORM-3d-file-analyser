@@ -515,6 +515,14 @@ class ViewControlsToolbar(QWidget):
         self.parts_btn.setEnabled(False)
         self.parts_btn.setVisible(False)  # Not shown in toolbar; accessed via Visual Style menu
         
+        # Spacer before utility group
+        content_layout.addSpacerItem(QSpacerItem(16, 0, QSizePolicy.Fixed, QSizePolicy.Minimum))
+
+        # Convert button - always enabled
+        self.convert_btn = ToolbarButton("🔄", "Convert", "Convert between 3D file formats (3DM, STEP, STL)")
+        self.convert_btn.clicked.connect(self._on_convert_clicked)
+        content_layout.addWidget(self.convert_btn)
+
         self.fullscreen_btn = ToolbarButton("⛶", "Fullscreen", "")
         self.fullscreen_btn.clicked.connect(self._on_fullscreen_clicked)
         content_layout.addWidget(self.fullscreen_btn)
