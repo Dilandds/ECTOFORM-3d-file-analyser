@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 # Rubber-band screenshot: render the canvas snapshot at this multiple of logical size.
 # Higher = sharper saved PNGs. Edge / total-pixel caps avoid GPU OOM on huge windows.
-SCREENSHOT_CAPTURE_SCALE = 12
+SCREENSHOT_CAPTURE_SCALE = 16
 _SCREENSHOT_MAX_EDGE_PX = 16384
-_SCREENSHOT_MAX_PIXELS = 96_000_000  # ~9.8k × 9.8k RGBA max; scales down uniformly if needed
+_SCREENSHOT_MAX_PIXELS = 200_000_000  # ~14k × 14k RGBA; most discrete GPUs handle this fine
 
 from ui.orientation_gizmo import OrientationGizmoWidget
 
