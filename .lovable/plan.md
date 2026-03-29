@@ -1,36 +1,30 @@
 
 
-## Plan: Move File Converter from Sidebar to Top Toolbar
+## Plan: Add Defensive Logging to Visual Style Menu (Windows Crash Fix)
 
-### Overview
-Move the "Convert File" feature from the left sidebar panel to the top toolbar as a new button that opens a dialog window for file conversion.
+### Problem
+Clicking "Visual Style" crashes on Windows with no error. The likely culprits are:
+1. **`_menu_diamond_px()`** — `QFontMetrics.horizontalAdvance()` was added in Qt 5.11; older PyQt5 builds may not have it, causing a silent crash
+2. **`_load_parts_menu_pixmap()`** — `QImage.convertToFormat()` on a scaled pixmap could fail on Windows GPU drivers
+3. **`_PartsMenuRow`** — `pix_lbl.setFixedSize(pm.size())` with a null/zero pixmap crashes layout
+4. **`QPainter` in fallback** — painting on a 0-size pixmap can segfault
 
 ### Changes
 
-**1. Create a converter dialog (`ui/converter_dialog.py`)**
-- New `QDialog` class containing all the converter UI (source file selector, format dropdown, convert button)
-- Move the conversion logic (file selection, format detection, running conversion) from `sidebar_panel.py` into this dialog
-- Style it to match the app's dark theme with gradient background
-- Emit `conversion_complete` signal when done
+**`ui/toolbar.py`** — Add try/except guards and logging throughout the Visual Style menu pipeline:
 
-**2. Add "Convert" button to toolbar (`ui/toolbar.py`)**
-- Add a new `ToolbarButton` (e.g. "🔄", "Convert") in the utility actions section, after the existing buttons
-- Add a new signal `open_converter = pyqtSignal()`
-- Wire the button click to emit that signal
-- This button should always be enabled (converter works independently of loaded model)
+1. **`_menu_diamond_px()`** — Wrap in try/except, fall back to `11` if `horizontalAdvance` fails. Add `logger.debug`.
 
-**3. Remove converter section from sidebar (`ui/sidebar_panel.py`)**
-- Remove `create_converter_section()` and all related methods (`set_conversion_blocked`, `reset_converter`, `set_converter_source_from_file`, `_select_converter_source`, `_run_selected_conversion`, `_run_conversion`)
-- Remove the `conversion_complete` signal from SidebarPanel
-- Remove the converter card from `init_ui`
+2. **`_load_parts_menu_pixmap(path)`** — Wrap the entire function in try/except returning empty `QPixmap()` on failure. Log each step (load, scale, convert). Guard against zero-size pixmaps.
 
-**4. Update main window wiring (`stl_viewer.py`)**
-- Connect toolbar's `open_converter` signal to open the new `ConverterDialog`
-- Connect `ConverterDialog.conversion_complete` to `_load_converted_file`
-- Remove all sidebar converter calls (`set_converter_source_from_file`, `set_conversion_blocked`, `reset_converter`)
+3. **`_parts_menu_pixmap_fallback(size)`** — Guard against `size <= 0`. Wrap `QPainter` block in try/except.
+
+4. **`_PartsMenuRow.__init__`** — After getting pixmap, check `pm.isNull()` before `setFixedSize`. Log the pixmap state.
+
+5. **`_show_render_mode_menu()`** — Wrap the entire method body in try/except with `logger.error(... exc_info=True)` so any crash is logged instead of silently killing the app.
 
 ### Technical Details
-- The dialog will be a modal `QDialog` with the same widgets currently in the sidebar card
-- Conversion map and `FileConverter` usage stays identical
-- The dialog can optionally pre-populate with the current file path if it's a convertible format (3DM/STEP)
+- All guards use `logger.warning/error` so issues appear in `app_debug.log`
+- No functional changes — just defensive wrapping and logging
+- The `horizontalAdvance` compatibility fix (fallback to `width()`) addresses a known PyQt5 version issue on some Windows installs
 
