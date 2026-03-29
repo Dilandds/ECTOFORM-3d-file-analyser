@@ -117,7 +117,11 @@ class _PartsMenuRow(QWidget):
         if pm.isNull():
             pm = _parts_menu_pixmap_fallback(_menu_diamond_px())
         pix_lbl.setPixmap(pm)
-        pix_lbl.setFixedSize(pm.size())
+        if not pm.isNull() and pm.width() > 0 and pm.height() > 0:
+            pix_lbl.setFixedSize(pm.size())
+        else:
+            logger.warning("_PartsMenuRow: pixmap is null/zero after fallback, skipping setFixedSize")
+            pix_lbl.setFixedSize(12, 12)
         pix_lbl.setStyleSheet("background: transparent; border: none;")
 
         txt = QLabel("Parts")
