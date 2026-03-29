@@ -249,7 +249,7 @@ class STLViewerWindow(QMainWindow):
         self.tab_bar.setMovable(False)
         self.tab_bar.setExpanding(False)
         self.tab_bar.setDrawBase(False)
-        self.tab_bar.setElideMode(Qt.ElideRight)
+        self.tab_bar.setElideMode(Qt.ElideNone)
         self.tab_bar.tabCloseRequested.connect(self._on_tab_close_requested)
         # Add "+" button as the last tab (before connecting currentChanged so signal doesn't fire before _plus_tab_index exists)
         self._plus_tab_index = self.tab_bar.addTab("+")
