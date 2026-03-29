@@ -76,9 +76,14 @@ class ScreenshotOverlay(QWidget):
                 self.region_selected.emit(rect)
 
     def wheelEvent(self, event):
-        """Forward wheel events to parent for zoom."""
-        if self.parent():
-            self.parent().wheelEvent(event)
+        """Forward wheel events for zoom."""
+        if self._zoom_callback:
+            delta = event.angleDelta().y()
+            if delta > 0:
+                self._zoom_callback(1.15)
+            elif delta < 0:
+                self._zoom_callback(0.85)
+            event.accept()
         else:
             super().wheelEvent(event)
 
