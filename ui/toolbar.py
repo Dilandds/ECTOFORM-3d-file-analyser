@@ -18,41 +18,68 @@ logger = logging.getLogger(__name__)
 
 def _menu_diamond_px() -> int:
     """Match ◆/◇/◈ in QMenu items (font-size 11px)."""
-    fm = QFontMetrics(make_font(size=11))
-    w = fm.horizontalAdvance("◆")
-    h = fm.boundingRect("◆").height()
-    return max(10, min(12, int(round(max(w, h)))))
+    try:
+        fm = QFontMetrics(make_font(size=11))
+        try:
+            w = fm.horizontalAdvance("◆")
+        except AttributeError:
+            logger.debug("horizontalAdvance not available, falling back to width()")
+            w = fm.width("◆")
+        h = fm.boundingRect("◆").height()
+        result = max(10, min(12, int(round(max(w, h)))))
+        logger.debug("_menu_diamond_px -> %d", result)
+        return result
+    except Exception:
+        logger.warning("_menu_diamond_px failed, using fallback 11", exc_info=True)
+        return 11
 
 
 def _parts_menu_pixmap_fallback(size: int) -> QPixmap:
-    pm = QPixmap(size, size)
-    pm.fill(Qt.transparent)
-    p = QPainter(pm)
-    p.setRenderHint(QPainter.Antialiasing)
-    p.setPen(Qt.NoPen)
-    p.setBrush(QColor(0, 0, 0))
-    gap = max(0.5, size * 0.08)
-    cell = (size - 3 * gap) / 2.0
-    for r in range(2):
-        for c in range(2):
-            x = gap + c * (cell + gap * 0.5)
-            y = gap + r * (cell + gap * 0.5)
-            p.drawRoundedRect(x, y, cell, cell, 1.0, 1.0)
-    p.end()
-    return pm
+    try:
+        if size <= 0:
+            logger.warning("_parts_menu_pixmap_fallback called with size=%d, clamping to 10", size)
+            size = 10
+        pm = QPixmap(size, size)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0))
+        gap = max(0.5, size * 0.08)
+        cell = (size - 3 * gap) / 2.0
+        for r in range(2):
+            for c in range(2):
+                x = gap + c * (cell + gap * 0.5)
+                y = gap + r * (cell + gap * 0.5)
+                p.drawRoundedRect(x, y, cell, cell, 1.0, 1.0)
+        p.end()
+        return pm
+    except Exception:
+        logger.warning("_parts_menu_pixmap_fallback failed", exc_info=True)
+        return QPixmap()
 
 
 def _load_parts_menu_pixmap(path: str) -> QPixmap:
     """Scale parts icon to same visual size as diamond glyphs (not QIcon — avoids macOS tint)."""
-    px = _menu_diamond_px()
-    if not path or not os.path.isfile(path):
+    try:
+        px = _menu_diamond_px()
+        if not path or not os.path.isfile(path):
+            logger.debug("_load_parts_menu_pixmap: no valid path (%s)", path)
+            return QPixmap()
+        pm = QPixmap(path)
+        if pm.isNull():
+            logger.warning("_load_parts_menu_pixmap: QPixmap('%s') is null", path)
+            return QPixmap()
+        logger.debug("_load_parts_menu_pixmap: loaded %dx%d, scaling to %d", pm.width(), pm.height(), px)
+        pm = pm.scaled(px, px, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        if pm.isNull() or pm.width() == 0 or pm.height() == 0:
+            logger.warning("_load_parts_menu_pixmap: scaled pixmap is null/zero")
+            return QPixmap()
+        img = pm.toImage().convertToFormat(QImage.Format_ARGB32_Premultiplied)
+        return QPixmap.fromImage(img)
+    except Exception:
+        logger.warning("_load_parts_menu_pixmap failed for '%s'", path, exc_info=True)
         return QPixmap()
-    pm = QPixmap(path)
-    if pm.isNull():
-        return QPixmap()
-    pm = pm.scaled(px, px, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-    img = pm.toImage().convertToFormat(QImage.Format_ARGB32_Premultiplied)
-    return QPixmap.fromImage(img)
 
 
 class _PartsMenuRow(QWidget):
@@ -67,7 +94,10 @@ class _PartsMenuRow(QWidget):
         self._enabled = enabled
         menu_font = make_font(size=11)
         fm = QFontMetrics(menu_font)
-        gap_two_spaces = fm.horizontalAdvance("  ")
+        try:
+            gap_two_spaces = fm.horizontalAdvance("  ")
+        except AttributeError:
+            gap_two_spaces = fm.width("  ")
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 6, 16, 6)
@@ -87,7 +117,11 @@ class _PartsMenuRow(QWidget):
         if pm.isNull():
             pm = _parts_menu_pixmap_fallback(_menu_diamond_px())
         pix_lbl.setPixmap(pm)
-        pix_lbl.setFixedSize(pm.size())
+        if not pm.isNull() and pm.width() > 0 and pm.height() > 0:
+            pix_lbl.setFixedSize(pm.size())
+        else:
+            logger.warning("_PartsMenuRow: pixmap is null/zero after fallback, skipping setFixedSize")
+            pix_lbl.setFixedSize(12, 12)
         pix_lbl.setStyleSheet("background: transparent; border: none;")
 
         txt = QLabel("Parts")
@@ -636,63 +670,69 @@ class ViewControlsToolbar(QWidget):
 
     def _show_render_mode_menu(self):
         """Show dropdown menu for render mode and parts selection."""
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{
-                background-color: {default_theme.card_background};
-                border: 1px solid {default_theme.border_standard};
-                border-radius: 6px;
-                padding: 4px 0;
-            }}
-            QMenu::item {{
-                padding: 6px 16px;
-                color: {default_theme.text_primary};
-                font-size: 11px;
-            }}
-            QMenu::item:selected {{
-                background-color: {default_theme.row_bg_hover};
-            }}
-            QMenu::item:checked {{
-                font-weight: bold;
-            }}
-            QMenu::separator {{
-                height: 1px;
-                background: {default_theme.border_standard};
-                margin: 4px 8px;
-            }}
-        """)
+        try:
+            logger.debug("_show_render_mode_menu: opening menu")
+            menu = QMenu(self)
+            menu.setStyleSheet(f"""
+                QMenu {{
+                    background-color: {default_theme.card_background};
+                    border: 1px solid {default_theme.border_standard};
+                    border-radius: 6px;
+                    padding: 4px 0;
+                }}
+                QMenu::item {{
+                    padding: 6px 16px;
+                    color: {default_theme.text_primary};
+                    font-size: 11px;
+                }}
+                QMenu::item:selected {{
+                    background-color: {default_theme.row_bg_hover};
+                }}
+                QMenu::item:checked {{
+                    font-weight: bold;
+                }}
+                QMenu::separator {{
+                    height: 1px;
+                    background: {default_theme.border_standard};
+                    margin: 4px 8px;
+                }}
+            """)
 
-        modes = [
-            ("shaded", "◆", "Shaded"),
-            ("solid", "◇", "Solid"),
-            ("wireframe", "◈", "Wireframe"),
-        ]
-        for mode_id, icon, label in modes:
-            action = menu.addAction(f"{icon}  {label}")
-            action.setCheckable(True)
-            action.setChecked(self.render_mode == mode_id)
-            action.triggered.connect(lambda checked, m=mode_id: self._set_render_mode(m))
+            modes = [
+                ("shaded", "◆", "Shaded"),
+                ("solid", "◇", "Solid"),
+                ("wireframe", "◈", "Wireframe"),
+            ]
+            for mode_id, icon, label in modes:
+                action = menu.addAction(f"{icon}  {label}")
+                action.setCheckable(True)
+                action.setChecked(self.render_mode == mode_id)
+                action.triggered.connect(lambda checked, m=mode_id: self._set_render_mode(m))
 
-        # Separator + Parts (QPixmap in QLabel — QAction+QIcon is tinted gray / oversized on macOS)
-        menu.addSeparator()
-        parts_icon_path = self._get_parts_icon_path()
-        if not (parts_icon_path and os.path.isfile(parts_icon_path)):
-            parts_icon_path = ""
-        row = _PartsMenuRow(parts_icon_path, self.parts_mode_enabled, self.stl_loaded, menu)
-        wa = QWidgetAction(menu)
-        wa.setDefaultWidget(row)
-        menu.addAction(wa)
+            # Separator + Parts (QPixmap in QLabel — QAction+QIcon is tinted gray / oversized on macOS)
+            menu.addSeparator()
+            parts_icon_path = self._get_parts_icon_path()
+            logger.debug("_show_render_mode_menu: parts_icon_path=%s", parts_icon_path)
+            if not (parts_icon_path and os.path.isfile(parts_icon_path)):
+                parts_icon_path = ""
+            row = _PartsMenuRow(parts_icon_path, self.parts_mode_enabled, self.stl_loaded, menu)
+            wa = QWidgetAction(menu)
+            wa.setDefaultWidget(row)
+            menu.addAction(wa)
 
-        def _parts_row_activate():
-            self._on_parts_selected()
-            menu.close()
+            def _parts_row_activate():
+                self._on_parts_selected()
+                menu.close()
 
-        row.clicked.connect(_parts_row_activate)
+            row.clicked.connect(_parts_row_activate)
 
-        # Show below the button
-        menu.exec_(self.render_mode_btn.mapToGlobal(
-            self.render_mode_btn.rect().bottomLeft()
-        ))
+            # Show below the button
+            menu.exec_(self.render_mode_btn.mapToGlobal(
+                self.render_mode_btn.rect().bottomLeft()
+            ))
+            logger.debug("_show_render_mode_menu: menu closed")
+        except Exception:
+            logger.error("_show_render_mode_menu CRASHED", exc_info=True)
 
     def _show_view_menu(self):
         """Show 2D Views menu: Front, Left, Right, Rear, Top, Bottom."""
