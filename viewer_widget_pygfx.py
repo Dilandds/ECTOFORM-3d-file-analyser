@@ -15,12 +15,10 @@ from ui.drop_zone_overlay import DropZoneOverlay
 
 logger = logging.getLogger(__name__)
 
-# Rubber-band screenshot settings.
-# Base scale keeps large selections sharp; adaptive scaling boosts small selections so the final crop uses much more of the available resolution budget.
-SCREENSHOT_CAPTURE_SCALE = 16
-_SCREENSHOT_TARGET_CROP_EDGE_PX = 12000
-_SCREENSHOT_MAX_EDGE_PX = 16384
-_SCREENSHOT_MAX_PIXELS = 200_000_000  # ~14k × 14k RGBA; scales down uniformly if needed
+# Rubber-band screenshot: render at this multiple of logical canvas size then crop.
+SCREENSHOT_CAPTURE_SCALE = 8
+_SCREENSHOT_MAX_EDGE_PX = 8192
+_SCREENSHOT_MAX_PIXELS = 67_000_000  # ~8k × 8k — safe for most GPUs
 
 from ui.orientation_gizmo import OrientationGizmoWidget
 
