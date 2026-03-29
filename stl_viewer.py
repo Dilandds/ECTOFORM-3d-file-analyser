@@ -690,13 +690,6 @@ class STLViewerWindow(QMainWindow):
             self.sidebar_panel.update_dimensions(tab.sidebar_data, tab.file_path)
             count = len(tab.annotation_panel.get_annotations())
             self.sidebar_panel.update_annotation_count(count)
-            # Show conversion options for 3DM/STEP; block for other formats
-            fp = (tab.file_path or "").lower()
-            is_conv = fp.endswith('.3dm') or fp.endswith('.step') or fp.endswith('.stp')
-            if is_conv:
-                self.sidebar_panel.set_converter_source_from_file(tab.file_path)
-            else:
-                self.sidebar_panel.set_conversion_blocked(True)
         else:
             self.sidebar_panel.reset_all_data()
             self.sidebar_panel.set_conversion_blocked(False)
