@@ -240,7 +240,7 @@ class STLViewerWindow(QMainWindow):
         self.sidebar_panel.upload_btn.clicked.connect(self.upload_stl_file)
         self.sidebar_panel.export_scaled_stl.connect(self.export_scaled_stl)
         self.sidebar_panel.annotations_exported.connect(self._on_annotations_exported)
-        self.sidebar_panel.conversion_complete.connect(self._load_converted_file)
+        
         splitter.addWidget(self.sidebar_panel)
         logger.info("init_ui: Sidebar panel created")
         
