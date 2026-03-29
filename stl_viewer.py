@@ -942,6 +942,7 @@ class STLViewerWindow(QMainWindow):
         self.toolbar.draw_clear_requested.connect(self._on_draw_clear)
         self.toolbar.load_file.connect(self.upload_stl_file)
         self.toolbar.clear_model.connect(self._clear_current_model)
+        self.toolbar.open_converter.connect(self._open_converter_dialog)
     
     def _connect_ruler_toolbar_signals(self):
         """Connect ruler toolbar signals to handler methods."""
