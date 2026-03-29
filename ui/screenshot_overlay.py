@@ -74,6 +74,13 @@ class ScreenshotOverlay(QWidget):
             if rect.width() > 10 and rect.height() > 10:
                 self.region_selected.emit(rect)
 
+    def wheelEvent(self, event):
+        """Forward wheel events to parent for zoom."""
+        if self.parent():
+            self.parent().wheelEvent(event)
+        else:
+            super().wheelEvent(event)
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self._drawing = False
