@@ -61,15 +61,25 @@ def _parts_menu_pixmap_fallback(size: int) -> QPixmap:
 
 def _load_parts_menu_pixmap(path: str) -> QPixmap:
     """Scale parts icon to same visual size as diamond glyphs (not QIcon — avoids macOS tint)."""
-    px = _menu_diamond_px()
-    if not path or not os.path.isfile(path):
+    try:
+        px = _menu_diamond_px()
+        if not path or not os.path.isfile(path):
+            logger.debug("_load_parts_menu_pixmap: no valid path (%s)", path)
+            return QPixmap()
+        pm = QPixmap(path)
+        if pm.isNull():
+            logger.warning("_load_parts_menu_pixmap: QPixmap('%s') is null", path)
+            return QPixmap()
+        logger.debug("_load_parts_menu_pixmap: loaded %dx%d, scaling to %d", pm.width(), pm.height(), px)
+        pm = pm.scaled(px, px, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        if pm.isNull() or pm.width() == 0 or pm.height() == 0:
+            logger.warning("_load_parts_menu_pixmap: scaled pixmap is null/zero")
+            return QPixmap()
+        img = pm.toImage().convertToFormat(QImage.Format_ARGB32_Premultiplied)
+        return QPixmap.fromImage(img)
+    except Exception:
+        logger.warning("_load_parts_menu_pixmap failed for '%s'", path, exc_info=True)
         return QPixmap()
-    pm = QPixmap(path)
-    if pm.isNull():
-        return QPixmap()
-    pm = pm.scaled(px, px, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-    img = pm.toImage().convertToFormat(QImage.Format_ARGB32_Premultiplied)
-    return QPixmap.fromImage(img)
 
 
 class _PartsMenuRow(QWidget):
