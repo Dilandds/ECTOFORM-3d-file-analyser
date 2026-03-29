@@ -26,8 +26,6 @@ class SidebarPanel(QWidget):
     # Signal emitted when annotations are exported as .ecto
     annotations_exported = pyqtSignal()
     
-    # Signal emitted when conversion completes with output file path (for loading into viewer)
-    conversion_complete = pyqtSignal(str)
     
     # Material density data (g/cm³)
     MATERIALS = [
