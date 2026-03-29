@@ -1028,7 +1028,7 @@ class STLViewerWindow(QMainWindow):
         
         # Reset sidebar panel dimensions and calculations
         self.sidebar_panel.reset_all_data()
-        self.sidebar_panel.reset_converter()
+        
         
         # Reset tab state
         tab = self._current_tab
